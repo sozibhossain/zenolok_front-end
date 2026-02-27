@@ -13,9 +13,10 @@ import {
   Plus,
   SlidersHorizontal,
 } from "lucide-react";
-import { format } from "date-fns";
+import { endOfMonth, format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +46,7 @@ const eventFilters = [
 
 export default function EventsPage() {
   const queryClient = useQueryClient();
+  const { monthCursor } = useAppState();
   const [filter, setFilter] = useState<(typeof eventFilters)[number]["value"]>("upcoming");
   const [selectedBrick, setSelectedBrick] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
@@ -58,6 +60,8 @@ export default function EventsPage() {
   const [startDateTime, setStartDateTime] = useState("");
   const [endDateTime, setEndDateTime] = useState("");
   const [newEventBrick, setNewEventBrick] = useState<string>("");
+  const monthStart = useMemo(() => format(startOfMonth(monthCursor), "yyyy-MM-dd"), [monthCursor]);
+  const monthEnd = useMemo(() => format(endOfMonth(monthCursor), "yyyy-MM-dd"), [monthCursor]);
 
   const bricksQuery = useQuery({
     queryKey: queryKeys.bricks,
@@ -65,11 +69,18 @@ export default function EventsPage() {
   });
 
   const eventsQuery = useQuery({
-    queryKey: queryKeys.events({ filter, brickId: selectedBrick === "all" ? undefined : selectedBrick }),
+    queryKey: queryKeys.events({
+      filter,
+      brickId: selectedBrick === "all" ? undefined : selectedBrick,
+      startDate: monthStart,
+      endDate: monthEnd,
+    }),
     queryFn: () =>
       eventApi.getAll({
         filter,
         brickId: selectedBrick === "all" ? undefined : selectedBrick,
+        startDate: monthStart,
+        endDate: monthEnd,
       }),
   });
 
@@ -99,7 +110,7 @@ export default function EventsPage() {
       setLocation("");
       setStartDateTime("");
       setEndDateTime("");
-      queryClient.invalidateQueries({ queryKey: queryKeys.events({ filter }) });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to create event"),
   });
@@ -137,7 +148,7 @@ export default function EventsPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [filter, searchText, selectedBrick]);
+  }, [filter, monthEnd, monthStart, searchText, selectedBrick]);
 
   return (
     <div className="space-y-4">
@@ -246,6 +257,17 @@ export default function EventsPage() {
       </section>
 
       <section className="rounded-[28px] border border-[#E0E4EC] bg-[#F4F6FA] p-4 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="font-poppins text-[32px] leading-[120%] font-semibold text-[#3D414A]">Events</p>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex size-9 items-center justify-center rounded-full border border-[#B2B8C6] bg-white text-[#7B8395] hover:bg-[#ECF0F7]"
+            aria-label="Create event"
+          >
+            <Plus className="size-4" />
+          </button>
+        </div>
         {eventsQuery.isLoading ? (
           <SectionLoading rows={6} />
         ) : paged.items.length ? (

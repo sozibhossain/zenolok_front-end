@@ -56,6 +56,10 @@ function mapParticipants(participants: EventData["participants"]) {
     .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
 }
 
+function getParticipantDisplayName(participant: { name?: string; username?: string; email?: string }) {
+  return participant.name || participant.username || participant.email || "User";
+}
+
 export default function EventDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -269,9 +273,9 @@ export default function EventDetailsPage() {
                       <div className="flex items-center gap-2">
                         <Avatar className="size-8">
                           <AvatarImage src={user.avatar?.url} />
-                          <AvatarFallback>{(user.name || user.username).slice(0, 1)}</AvatarFallback>
+                          <AvatarFallback>{getParticipantDisplayName(user).slice(0, 1)}</AvatarFallback>
                         </Avatar>
-                        <span>{user.name || user.username}</span>
+                        <span>{getParticipantDisplayName(user)}</span>
                       </div>
                       <button className="text-[#80889A]" onClick={() => addParticipantMutation.mutate(user._id)}>
                         <UserPlus className="size-4" />
@@ -454,7 +458,7 @@ export default function EventDetailsPage() {
           {participants.map((participant) => (
             <Avatar key={participant._id} className="size-8 border border-[#d2d8e5]">
               <AvatarImage src={participant.avatar?.url} />
-              <AvatarFallback>{(participant.name || participant.username).slice(0, 1)}</AvatarFallback>
+              <AvatarFallback>{getParticipantDisplayName(participant).slice(0, 1)}</AvatarFallback>
             </Avatar>
           ))}
         </div>

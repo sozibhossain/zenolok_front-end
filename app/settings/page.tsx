@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowRight,
   BadgeCheck,
   Bell,
   BellPlus,
@@ -37,15 +35,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useAppState } from "@/components/providers/app-state-provider";
+import { BricksManagePanel } from "@/components/settings/bricks-manage-panel";
+import { WeekStartDayPanel } from "@/components/settings/week-start-day-panel";
 import { authApi, userApi } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import {
-  applyThemePreference,
-  defaultPreferences,
-  readPreferences,
-  weekStartDayOptions,
-  writePreferences,
-} from "@/lib/settings";
+import { weekStartDayOptions } from "@/lib/settings";
 
 type SettingsSection =
   | "profile"
@@ -84,12 +79,16 @@ const sections: SidebarSection[] = [
   { id: "logout", label: "Logout", icon: LogOut, support: true },
 ];
 
+function isSettingsSection(value: string): value is SettingsSection {
+  return sections.some((section) => section.id === value);
+}
+
 export default function SettingsPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const { preferences, updatePreferences } = useAppState();
+  const initialParamsHandled = React.useRef(false);
 
   const [activeSection, setActiveSection] = React.useState<SettingsSection>("profile");
-  const [preferences, setPreferences] = React.useState(defaultPreferences);
 
   const [name, setName] = React.useState("");
   const [selectedAvatar, setSelectedAvatar] = React.useState<File | null>(null);
@@ -102,6 +101,8 @@ export default function SettingsPage() {
   const [alarmPreset, setAlarmPreset] = React.useState<AlarmPreset>("none");
   const [feedbackMessage, setFeedbackMessage] = React.useState("");
   const [logoutModalOpen, setLogoutModalOpen] = React.useState(false);
+  const [bricksManageModalOpen, setBricksManageModalOpen] = React.useState(false);
+  const [weekStartModalOpen, setWeekStartModalOpen] = React.useState(false);
   const [notificationPrefs, setNotificationPrefs] = React.useState<Record<NotificationKey, boolean>>({
     anyMessages: true,
     taggedMessages: true,
@@ -113,12 +114,6 @@ export default function SettingsPage() {
     queryKey: queryKeys.profile,
     queryFn: userApi.getProfile,
   });
-
-  React.useEffect(() => {
-    const saved = readPreferences();
-    setPreferences(saved);
-    applyThemePreference(saved.darkMode);
-  }, []);
 
   React.useEffect(() => {
     if (!profileQuery.data) {
@@ -141,6 +136,28 @@ export default function SettingsPage() {
       URL.revokeObjectURL(objectUrl);
     };
   }, [selectedAvatar]);
+
+  React.useEffect(() => {
+    if (initialParamsHandled.current) {
+      return;
+    }
+
+    initialParamsHandled.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section");
+    if (section && isSettingsSection(section)) {
+      setActiveSection(section);
+    }
+
+    const modal = params.get("modal");
+    if (modal === "bricks-manage") {
+      setBricksManageModalOpen(true);
+    }
+    if (modal === "week-start-day") {
+      setWeekStartModalOpen(true);
+    }
+  }, []);
 
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
@@ -207,15 +224,6 @@ export default function SettingsPage() {
     changePasswordMutation.mutate();
   };
 
-  const updatePreferences = (patch: Partial<typeof preferences>) => {
-    const next = { ...preferences, ...patch };
-    setPreferences(next);
-    writePreferences(next);
-    if (typeof patch.darkMode === "boolean") {
-      applyThemePreference(next.darkMode);
-    }
-  };
-
   const updateNotification = (key: NotificationKey, value: boolean) => {
     setNotificationPrefs((prev) => ({ ...prev, [key]: value }));
   };
@@ -226,15 +234,17 @@ export default function SettingsPage() {
 
   const primarySections = sections.filter((section) => !section.support);
   const supportSections = sections.filter((section) => section.support);
+  const currentWeekStartLabel =
+    weekStartDayOptions.find((option) => option.key === preferences.weekStartDay)?.label || "Monday";
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="rounded-[30px] border border-[#E0E5EE] bg-[#F5F7FC] p-8 shadow-[0_16px_44px_rgba(17,24,37,0.12)] lg:sticky lg:top-24 lg:h-[calc(100vh-130px)] lg:overflow-auto">
-          <h1 className="font-poppins mb-4 text-[30px] leading-[120%] font-semibold text-[#202531]">Settings</h1>
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="rounded-[30px] border border-[#E0E5EE] bg-[#F5F7FC] p-4 shadow-[0_16px_44px_rgba(17,24,37,0.12)] sm:p-6 xl:sticky xl:top-24 xl:h-[calc(100vh-130px)] xl:overflow-auto xl:p-8">
+          <h1 className="font-poppins mb-3 text-[28px] leading-[120%] font-semibold text-[#202531] sm:mb-4 sm:text-[30px]">Settings</h1>
           <p className="font-poppins text-[16px] leading-[120%] font-normal text-[#7A8598]">Account and preferences</p>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
             {primarySections.map((section) => {
               const Icon = section.icon;
               const active = activeSection === section.id;
@@ -251,7 +261,7 @@ export default function SettingsPage() {
                   <span className={`flex size-10 items-center justify-center rounded-xl ${active ? "bg-[#BFD7FF]" : "bg-[#E9EEF6]"}`}>
                     <Icon className="size-5" />
                   </span>
-                  <span className="font-poppins text-[20px] leading-[120%] font-medium">{section.label}</span>
+                  <span className="font-poppins text-[16px] leading-[120%] font-medium sm:text-[18px]">{section.label}</span>
                 </button>
               );
             })}
@@ -259,7 +269,7 @@ export default function SettingsPage() {
 
           <div className="mt-5 border-t border-[#DFE4EE] pt-4">
             <p className="font-poppins mb-2 text-[20px] leading-[120%] font-semibold text-[#212734]">Support</p>
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
               {supportSections.map((section) => {
                 const Icon = section.icon;
                 const active = activeSection === section.id;
@@ -276,7 +286,7 @@ export default function SettingsPage() {
                     <span className={`flex size-10 items-center justify-center rounded-xl ${active ? "bg-[#BFD7FF]" : "bg-[#E9EEF6]"}`}>
                       <Icon className="size-5" />
                     </span>
-                    <span className="font-poppins text-[20px] leading-[120%] font-medium">{section.label}</span>
+                    <span className="font-poppins text-[16px] leading-[120%] font-medium sm:text-[18px]">{section.label}</span>
                   </button>
                 );
               })}
@@ -351,7 +361,7 @@ export default function SettingsPage() {
           {activeSection === "password" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Change Password</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Change Password</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Use your current password and set a strong new password.
                 </p>
@@ -393,7 +403,7 @@ export default function SettingsPage() {
           {activeSection === "bricksManage" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Bricks Manage</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Bricks Manage</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Manage brick name, icon, and color.
                 </p>
@@ -401,15 +411,14 @@ export default function SettingsPage() {
 
               <div className="max-w-[700px] rounded-3xl border border-[#DEE3ED] bg-white p-4 sm:p-5">
                 <p className="font-poppins text-[20px] leading-[120%] font-medium text-[#2E3648]">
-                  Open the dedicated Bricks Manage page.
+                  Open Bricks Manage in a modal.
                 </p>
                 <Button
                   type="button"
                   className="font-poppins mt-4 h-11 rounded-xl px-5 text-[20px] leading-[120%] font-medium"
-                  onClick={() => router.push("/settings/bricks-manage")}
+                  onClick={() => setBricksManageModalOpen(true)}
                 >
                   Open Bricks Manage
-                  <ArrowRight className="size-4" />
                 </Button>
               </div>
             </section>
@@ -418,40 +427,23 @@ export default function SettingsPage() {
           {activeSection === "weekStartDay" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Manage weeks start day</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Manage weeks start day</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Choose the first day of your week calendar.
                 </p>
               </div>
 
-              <div className="max-w-[760px] space-y-2 rounded-3xl border border-[#DEE3ED] bg-white p-3 sm:p-4">
-                {weekStartDayOptions.map((day) => {
-                  const active = preferences.weekStartDay === day.key;
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      onClick={() => updatePreferences({ weekStartDay: day.key })}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 transition ${
-                        active ? "border-[#4695FF] bg-[#E8F2FF]" : "border-[#D9DEE8] bg-white hover:border-[#BFC7D8]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`font-poppins flex size-10 items-center justify-center rounded-xl text-[20px] leading-[120%] ${
-                            active ? "bg-[#D8E9FF] text-[#2A76DF]" : "bg-[#EFF1F5] text-[#2B303A]"
-                          }`}
-                        >
-                          {day.letter}
-                        </span>
-                        <span className={`font-poppins text-[20px] leading-[120%] ${active ? "font-semibold text-[#2A76DF]" : "font-medium text-[#2E3340]"}`}>
-                          {day.label}
-                        </span>
-                      </div>
-                      {active ? <CheckCircle2 className="size-6 text-[#2E7BF0]" /> : null}
-                    </button>
-                  );
-                })}
+              <div className="max-w-[760px] rounded-3xl border border-[#DEE3ED] bg-white p-4 sm:p-5">
+                <p className="font-poppins text-[20px] leading-[120%] font-medium text-[#2E3648]">
+                  Current week starts on: {currentWeekStartLabel}
+                </p>
+                <Button
+                  type="button"
+                  className="font-poppins mt-4 h-11 rounded-xl px-5 text-[20px] leading-[120%] font-medium"
+                  onClick={() => setWeekStartModalOpen(true)}
+                >
+                  Choose Week Start Day
+                </Button>
               </div>
             </section>
           ) : null}
@@ -459,7 +451,7 @@ export default function SettingsPage() {
           {activeSection === "switchTimeFormat" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Switch time format</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Switch time format</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Use 24-hour time in all pages.
                 </p>
@@ -482,7 +474,7 @@ export default function SettingsPage() {
           {activeSection === "alarmPreset" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Alarm preset</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Alarm preset</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Select your default reminder pattern.
                 </p>
@@ -519,7 +511,7 @@ export default function SettingsPage() {
           {activeSection === "darkMode" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Dark Mode</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Dark Mode</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Toggle dark mode preference.
                 </p>
@@ -542,7 +534,7 @@ export default function SettingsPage() {
           {activeSection === "notificationsReminders" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Notifications & Reminders</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Notifications & Reminders</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Configure which alerts you want to receive.
                 </p>
@@ -572,7 +564,7 @@ export default function SettingsPage() {
           {activeSection === "calendar" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Calendar</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Calendar</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Manage calendar-related settings.
                 </p>
@@ -604,7 +596,7 @@ export default function SettingsPage() {
           {activeSection === "feedback" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Feedback</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Feedback</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   Send us your feedback and suggestions.
                 </p>
@@ -640,7 +632,7 @@ export default function SettingsPage() {
           {activeSection === "logout" ? (
             <section className="space-y-5">
               <div>
-                <h2 className="font-poppins text-[40px] leading-[120%] font-semibold text-[#1E2430]">Logout</h2>
+                <h2 className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">Logout</h2>
                 <p className="font-poppins mt-1 text-[16px] leading-[120%] font-normal text-[#727C8E]">
                   End your current session securely.
                 </p>
@@ -663,6 +655,33 @@ export default function SettingsPage() {
           ) : null}
         </main>
       </div>
+
+      <Dialog open={bricksManageModalOpen} onOpenChange={setBricksManageModalOpen}>
+        <DialogContent className="max-h-[88vh] max-w-[1100px] overflow-y-auto rounded-[30px] border border-[#DDE3EE] bg-[#F5F7FC] p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">
+              Bricks Manage
+            </DialogTitle>
+            <DialogDescription>Manage brick name, icon, and color from this modal.</DialogDescription>
+          </DialogHeader>
+          <BricksManagePanel />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={weekStartModalOpen} onOpenChange={setWeekStartModalOpen}>
+        <DialogContent className="max-w-3xl rounded-[30px] border border-[#DDE3EE] bg-[#F5F7FC] p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">
+              Manage weeks start day
+            </DialogTitle>
+            <DialogDescription>Choose the first day of your week calendar.</DialogDescription>
+          </DialogHeader>
+          <WeekStartDayPanel
+            selectedDay={preferences.weekStartDay}
+            onSelect={(day) => updatePreferences({ weekStartDay: day })}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
         <DialogContent className="max-w-md rounded-3xl">

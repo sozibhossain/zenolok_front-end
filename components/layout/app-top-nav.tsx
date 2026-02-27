@@ -18,6 +18,7 @@ import { signOut, useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { BrickIcon } from "@/components/shared/brick-icon";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,12 @@ export function AppTopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
+  const {
+    monthCursor,
+    goToToday,
+    goToPreviousMonth,
+    goToNextMonth,
+  } = useAppState();
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#E2E6EE] bg-[#F2F5FA]/90 backdrop-blur">
@@ -39,16 +46,34 @@ export function AppTopNav() {
           <div className="flex size-13 items-center justify-center rounded-2xl border border-[#D1D6DF] bg-white">
             <CalendarDays className="size-7 text-[#2A2E36]" />
           </div>
-          <Button className="font-poppins rounded-full border border-[#7A8F64] bg-[#A7C58D] px-7 text-[20px] leading-[120%] font-medium text-[#2A2E36] hover:bg-[#97ba79]" onClick={() => router.push("/home")}>
+          <Button
+            className="font-poppins rounded-full border border-[#7A8F64] bg-[#A7C58D] px-7 text-[20px] leading-[120%] font-medium text-[#2A2E36] hover:bg-[#97ba79]"
+            onClick={() => {
+              goToToday();
+              router.push("/home");
+            }}
+          >
             Today
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-full" aria-label="Previous period">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label="Previous period"
+            onClick={goToPreviousMonth}
+          >
             <ChevronLeft className="size-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-full" aria-label="Next period">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label="Next period"
+            onClick={goToNextMonth}
+          >
             <ChevronRight className="size-5" />
           </Button>
-          <div className="font-poppins hidden text-[20px] leading-[120%] font-medium md:block">{format(new Date(), "MMMM yyyy")}</div>
+          <div className="font-poppins hidden text-[20px] leading-[120%] font-medium md:block">{format(monthCursor, "MMMM yyyy")}</div>
         </div>
 
         <nav className="mx-auto hidden items-center gap-2 md:flex">

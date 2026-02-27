@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { endOfMonth, format, startOfMonth } from "date-fns";
 import { ArrowLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { Card } from "@/components/ui/card";
@@ -16,12 +18,15 @@ const tabs = ["Messages", "System", "All"] as const;
 
 export default function SearchPage() {
   const router = useRouter();
+  const { monthCursor } = useAppState();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Messages");
   const [query, setQuery] = useState("");
+  const monthStart = useMemo(() => format(startOfMonth(monthCursor), "yyyy-MM-dd"), [monthCursor]);
+  const monthEnd = useMemo(() => format(endOfMonth(monthCursor), "yyyy-MM-dd"), [monthCursor]);
 
   const eventsQuery = useQuery({
-    queryKey: queryKeys.events({ filter: "all" }),
-    queryFn: () => eventApi.getAll({ filter: "all" }),
+    queryKey: queryKeys.events({ filter: "all", startDate: monthStart, endDate: monthEnd }),
+    queryFn: () => eventApi.getAll({ filter: "all", startDate: monthStart, endDate: monthEnd }),
   });
 
   const results = useMemo(() => {
