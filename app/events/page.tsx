@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { BrickIcon } from "@/components/shared/brick-icon";
 import { EmptyState } from "@/components/shared/empty-state";
+import { EventDateRangePopup, EventTimeRangePopup } from "@/components/shared/event-date-time-popups";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { eventApi, brickApi, paginateArray } from "@/lib/api";
@@ -59,8 +60,12 @@ export default function EventsPage() {
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [isAllDay, setIsAllDay] = useState(false);
-  const [startDateTime, setStartDateTime] = useState("");
-  const [endDateTime, setEndDateTime] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [datePopupOpen, setDatePopupOpen] = useState(false);
+  const [timePopupOpen, setTimePopupOpen] = useState(false);
   const [newEventBrick, setNewEventBrick] = useState<string>("");
   const [brickName, setBrickName] = useState("");
   const [brickColor, setBrickColor] = useState("#36A9E1");
@@ -95,19 +100,23 @@ export default function EventsPage() {
         throw new Error("Title is required");
       }
 
-      if (!startDateTime || !endDateTime) {
-        throw new Error("Start and end date/time are required");
+      if (!startDate || !endDate) {
+        throw new Error("Start and end dates are required");
       }
 
-      const startDate = new Date(startDateTime);
-      const endDate = new Date(endDateTime);
+      if (!isAllDay && (!startTime || !endTime)) {
+        throw new Error("Start and end times are required");
+      }
 
-      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      const startDateTime = new Date(`${startDate}T${(startTime || "00:00")}:00`);
+      const endDateTime = new Date(`${endDate}T${(endTime || "00:00")}:00`);
+
+      if (Number.isNaN(startDateTime.getTime()) || Number.isNaN(endDateTime.getTime())) {
         throw new Error("Invalid start or end date/time");
       }
 
-      const normalizedStart = isAllDay ? startOfDay(startDate) : startDate;
-      const normalizedEnd = isAllDay ? endOfDay(endDate) : endDate;
+      const normalizedStart = isAllDay ? startOfDay(startDateTime) : startDateTime;
+      const normalizedEnd = isAllDay ? endOfDay(endDateTime) : endDateTime;
 
       if (normalizedEnd.getTime() <= normalizedStart.getTime()) {
         throw new Error("End date/time must be after start date/time");
@@ -128,8 +137,12 @@ export default function EventsPage() {
       setTitle("");
       setLocation("");
       setIsAllDay(false);
-      setStartDateTime("");
-      setEndDateTime("");
+      setStartDate("");
+      setEndDate("");
+      setStartTime("");
+      setEndTime("");
+      setDatePopupOpen(false);
+      setTimePopupOpen(false);
       setNewEventBrick("");
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
@@ -179,10 +192,31 @@ export default function EventsPage() {
   }, [eventsQuery.data, searchText]);
 
   const paged = useMemo(() => paginateArray(filteredEvents, page, 6), [filteredEvents, page]);
+  const hasDateRange = Boolean(startDate && endDate);
+  const dateSummary = hasDateRange ? `${startDate} - ${endDate}` : "";
+  const hasTimeRange = Boolean(startTime && endTime);
 
   React.useEffect(() => {
     setPage(1);
   }, [filter, monthEnd, monthStart, searchText, selectedBrick]);
+
+  React.useEffect(() => {
+    if (!createEventOpen) {
+      return;
+    }
+    setDatePopupOpen(false);
+    setTimePopupOpen(false);
+    setStartDate("");
+    setEndDate("");
+    setStartTime("");
+    setEndTime("");
+  }, [createEventOpen]);
+
+  React.useEffect(() => {
+    if (!hasDateRange) {
+      setTimePopupOpen(false);
+    }
+  }, [hasDateRange]);
 
   return (
     <div className="space-y-4">
@@ -383,13 +417,42 @@ export default function EventsPage() {
           <div className="space-y-4">
             <Input placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
             <Input placeholder="Location" value={location} onChange={(event) => setLocation(event.target.value)} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input type="datetime-local" value={startDateTime} onChange={(event) => setStartDateTime(event.target.value)} />
-              <Input type="datetime-local" value={endDateTime} onChange={(event) => setEndDateTime(event.target.value)} />
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="font-poppins inline-flex items-center gap-2 rounded-full px-1 text-[20px] leading-[120%] font-medium text-[#4D4D4D]"
+                onClick={() => setDatePopupOpen(true)}
+              >
+                <CalendarDays className="size-5" />
+                Choose a date
+              </button>
+              {dateSummary ? <p className="text-[12px] text-[#8890A0]">{dateSummary}</p> : null}
             </div>
+            {!isAllDay ? (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="font-poppins inline-flex items-center gap-2 rounded-full px-1 text-[20px] leading-[120%] font-medium text-[#4D4D4D] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setTimePopupOpen(true)}
+                  disabled={!hasDateRange}
+                >
+                  <Clock3 className="size-5" />
+                  Set time
+                </button>
+                {hasTimeRange ? <p className="text-[12px] text-[#8890A0]">{startTime} - {endTime}</p> : null}
+              </div>
+            ) : null}
             <div className="flex items-center justify-between rounded-xl border border-[#E4E8F0] p-3">
               <p className="fs-pop-16-regular text-[#3A404D]">All day</p>
-              <Switch checked={isAllDay} onCheckedChange={setIsAllDay} />
+              <Switch
+                checked={isAllDay}
+                onCheckedChange={(checked) => {
+                  setIsAllDay(checked);
+                  if (checked) {
+                    setTimePopupOpen(false);
+                  }
+                }}
+              />
             </div>
             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
               {bricks.map((brick) => (
@@ -415,6 +478,27 @@ export default function EventsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EventDateRangePopup
+        open={datePopupOpen}
+        onOpenChange={setDatePopupOpen}
+        startDate={startDate}
+        endDate={endDate}
+        onApply={({ startDate: nextStartDate, endDate: nextEndDate }) => {
+          setStartDate(nextStartDate);
+          setEndDate(nextEndDate);
+        }}
+      />
+      <EventTimeRangePopup
+        open={timePopupOpen}
+        onOpenChange={setTimePopupOpen}
+        startTime={startTime}
+        endTime={endTime}
+        onApply={({ startTime: nextStartTime, endTime: nextEndTime }) => {
+          setStartTime(nextStartTime);
+          setEndTime(nextEndTime);
+        }}
+      />
     </div>
   );
 }

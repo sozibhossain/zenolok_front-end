@@ -8,9 +8,11 @@ import {
   CalendarClock,
   CalendarDays,
   Clock3,
+  Pencil,
   Plus,
   Repeat2,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,7 +21,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
 import {
-  brickApi,
   paginateArray,
   todoItemApi,
   todoCategoryApi,
@@ -39,8 +40,6 @@ import {
 interface CategoryWithItems extends TodoCategory {
   items: TodoItem[];
 }
-
-const defaultCategoryBrickIcon = "layout-grid";
 
 function toDateInputValue(value?: string) {
   if (!value) {
@@ -76,12 +75,16 @@ function CategoryCard({
   onOpen,
   onCreateTodoRequest,
   onEditTodoRequest,
+  onEditCategoryRequest,
+  onDeleteCategoryRequest,
 }: {
   category: CategoryWithItems;
   onToggle: (payload: { id: string; isCompleted: boolean }) => void;
   onOpen: (categoryId: string) => void;
   onCreateTodoRequest: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
+  onEditCategoryRequest: (category: CategoryWithItems) => void;
+  onDeleteCategoryRequest: (categoryId: string) => void;
 }) {
   const unfinished = (category.items || []).filter((item) => !item.isCompleted);
 
@@ -99,15 +102,39 @@ function CategoryCard({
       className="rounded-[26px] border border-[#D7DCE6] bg-[#F7F9FC] p-4 transition hover:border-[#C7CEDD]"
     >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-poppins text-[32px] leading-[120%] font-semibold" style={{ color: category.color }}>
+        <h3 className="font-poppins text-[24px] leading-[120%] font-semibold" style={{ color: category.color }}>
           {category.name}
         </h3>
-        <span
-          className="font-poppins inline-flex min-w-[26px] items-center justify-center rounded-full px-1.5 py-0.5 text-[14px] leading-[120%] font-medium text-white"
-          style={{ backgroundColor: category.color }}
-        >
-          {unfinished.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label={`Edit ${category.name}`}
+            className="inline-flex items-center justify-center text-[#7D8596]"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEditCategoryRequest(category);
+            }}
+          >
+            <Pencil className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Delete ${category.name}`}
+            className="inline-flex items-center justify-center text-[#7D8596]"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteCategoryRequest(category._id);
+            }}
+          >
+            <Trash2 className="size-4" />
+          </button>
+          <span
+            className="font-poppins inline-flex min-w-[26px] items-center justify-center rounded-full px-1.5 py-0.5 text-[14px] leading-[120%] font-medium text-white"
+            style={{ backgroundColor: category.color }}
+          >
+            {unfinished.length}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -183,6 +210,12 @@ export default function TodosPage() {
   const [todoEditorMode, setTodoEditorMode] = React.useState<TodoEditorMode>("edit");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [deleteTargetTodoId, setDeleteTargetTodoId] = React.useState<string | null>(null);
+  const [editCategoryOpen, setEditCategoryOpen] = React.useState(false);
+  const [editCategoryId, setEditCategoryId] = React.useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = React.useState("");
+  const [editCategoryColor, setEditCategoryColor] = React.useState("#F7C700");
+  const [deleteCategoryConfirmOpen, setDeleteCategoryConfirmOpen] = React.useState(false);
+  const [deleteTargetCategoryId, setDeleteTargetCategoryId] = React.useState<string | null>(null);
   const [selectedTodoId, setSelectedTodoId] = React.useState<string | null>(null);
   const [todoText, setTodoText] = React.useState("");
   const [dateEnabled, setDateEnabled] = React.useState(false);
@@ -258,17 +291,10 @@ export default function TodosPage() {
 
       const categoryName = newCategoryName.trim();
 
-      await Promise.all([
-        todoCategoryApi.create({
-          name: categoryName,
-          color: newCategoryColor,
-        }),
-        brickApi.create({
-          name: categoryName,
-          color: newCategoryColor,
-          icon: defaultCategoryBrickIcon,
-        }),
-      ]);
+      await todoCategoryApi.create({
+        name: categoryName,
+        color: newCategoryColor,
+      });
     },
     onSuccess: () => {
       toast.success("Category added");
@@ -277,9 +303,50 @@ export default function TodosPage() {
       setNewCategoryColor("#F7C700");
       queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
       queryClient.invalidateQueries({ queryKey: queryKeys.categories });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bricks });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to create category"),
+  });
+  const updateCategoryMutation = useMutation({
+    mutationFn: async () => {
+      if (!editCategoryId) {
+        throw new Error("Category is required");
+      }
+
+      const categoryName = editCategoryName.trim();
+      if (!categoryName) {
+        throw new Error("Category name is required");
+      }
+
+      await todoCategoryApi.update(editCategoryId, {
+        name: categoryName,
+        color: editCategoryColor,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Category updated");
+      setEditCategoryOpen(false);
+      setEditCategoryId(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update category"),
+  });
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: string) => todoCategoryApi.delete(id),
+    onSuccess: (_data, categoryId) => {
+      toast.success("Category deleted");
+      setDeleteCategoryConfirmOpen(false);
+      setDeleteTargetCategoryId(null);
+      if (selectedCategoryId === categoryId) {
+        setCategoryDetailOpen(false);
+        setSelectedCategoryId(null);
+        setSelectedTodoId(null);
+        setTodoEditorOpen(false);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete category"),
   });
 
   const categories = React.useMemo(
@@ -355,6 +422,12 @@ export default function TodosPage() {
     setTodoEditorMode("edit");
     setTodoEditorOpen(true);
   }, []);
+  const openEditCategoryDialog = React.useCallback((category: CategoryWithItems) => {
+    setEditCategoryId(category._id);
+    setEditCategoryName(category.name || "");
+    setEditCategoryColor(category.color || "#F7C700");
+    setEditCategoryOpen(true);
+  }, []);
 
   const handleSubmitTodoEditor = React.useCallback(() => {
     const trimmedText = todoText.trim();
@@ -426,6 +499,12 @@ export default function TodosPage() {
     }
     deleteTodoMutation.mutate(deleteTargetTodoId);
   }, [deleteTargetTodoId, deleteTodoMutation]);
+  const handleConfirmDeleteCategory = React.useCallback(() => {
+    if (!deleteTargetCategoryId) {
+      return;
+    }
+    deleteCategoryMutation.mutate(deleteTargetCategoryId);
+  }, [deleteCategoryMutation, deleteTargetCategoryId]);
 
   return (
     <div className="space-y-4">
@@ -440,6 +519,25 @@ export default function TodosPage() {
             onNewCategoryColorChange={setNewCategoryColor}
             onCreate={() => createCategoryMutation.mutate()}
             isCreating={createCategoryMutation.isPending}
+          />
+          <AddCategoryDialog
+            open={editCategoryOpen}
+            onOpenChange={(open) => {
+              setEditCategoryOpen(open);
+              if (!open) {
+                setEditCategoryId(null);
+              }
+            }}
+            newCategoryName={editCategoryName}
+            onNewCategoryNameChange={setEditCategoryName}
+            newCategoryColor={editCategoryColor}
+            onNewCategoryColorChange={setEditCategoryColor}
+            onCreate={() => updateCategoryMutation.mutate()}
+            isCreating={updateCategoryMutation.isPending}
+            title="Edit Category"
+            submitLabel="Save"
+            pendingLabel="Saving..."
+            showDefaultTrigger={false}
           />
         </div>
 
@@ -486,6 +584,11 @@ export default function TodosPage() {
                       }}
                       onCreateTodoRequest={openCreateTodoEditor}
                       onEditTodoRequest={openEditTodoEditor}
+                      onEditCategoryRequest={openEditCategoryDialog}
+                      onDeleteCategoryRequest={(categoryId) => {
+                        setDeleteTargetCategoryId(categoryId);
+                        setDeleteCategoryConfirmOpen(true);
+                      }}
                       onToggle={({ id, isCompleted }) =>
                         toggleTodoMutation.mutate({ id, isCompleted })
                       }
@@ -567,6 +670,18 @@ export default function TodosPage() {
         }}
         onConfirm={handleConfirmDeleteTodo}
         isDeleting={deleteTodoMutation.isPending}
+      />
+      <DeleteConfirmDialog
+        open={deleteCategoryConfirmOpen}
+        onOpenChange={(open) => {
+          setDeleteCategoryConfirmOpen(open);
+          if (!open) {
+            setDeleteTargetCategoryId(null);
+          }
+        }}
+        onConfirm={handleConfirmDeleteCategory}
+        isDeleting={deleteCategoryMutation.isPending}
+        title="Delete Category?"
       />
     </div>
   );

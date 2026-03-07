@@ -1,13 +1,11 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Bell,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ListTodo,
@@ -19,11 +17,6 @@ import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { BrickIcon } from "@/components/shared/brick-icon";
 import { cn } from "@/lib/utils";
@@ -57,23 +50,8 @@ export function AppTopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-  const [viewMenuOpen, setViewMenuOpen] = React.useState(false);
-  const [calendarView, setCalendarView] = React.useState<
-    "day" | "week" | "month" | "year"
-  >("month");
   const { monthCursor, goToToday, goToPreviousMonth, goToNextMonth } =
     useAppState();
-
-  const viewOptions: Array<{
-    value: "day" | "week" | "month" | "year";
-    label: string;
-    short: string;
-  }> = [
-    { value: "day", label: "Day", short: "D" },
-    { value: "week", label: "Week", short: "W" },
-    { value: "month", label: "Month", short: "M" },
-    { value: "year", label: "Year", short: "Y" },
-  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#E2E6EE] bg-[#F2F5FA]/90 backdrop-blur">
@@ -144,57 +122,6 @@ export function AppTopNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Popover open={viewMenuOpen} onOpenChange={setViewMenuOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="hidden md:inline-flex"
-                aria-label="Open calendar view filter"
-              >
-                <Badge
-                  variant="neutral"
-                  className="h-11 items-center gap-2 px-4"
-                >
-                  {viewOptions.find((option) => option.value === calendarView)
-                    ?.label || "Month"}{" "}
-                  <ChevronDown className="size-4" />
-                </Badge>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-[270px] rounded-2xl border border-[#D6DDE8] bg-[#ECEFF4] p-3"
-            >
-              <div className="space-y-1">
-                {viewOptions.map((option) => {
-                  const active = option.value === calendarView;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setCalendarView(option.value);
-                        setViewMenuOpen(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition",
-                        active
-                          ? "bg-white text-[#2E333B]"
-                          : "text-[#707780] hover:bg-white/70",
-                      )}
-                    >
-                      <span className="fs-pop-20-medium-center">
-                        {option.label}
-                      </span>
-                      <span className="fs-pop-20-medium-center">
-                        {option.short}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
           <Button
             variant="ghost"
             size="icon"

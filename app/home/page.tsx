@@ -18,6 +18,7 @@ import {
 } from "date-fns";
 import {
   CalendarClock,
+  Clock3,
   ChevronDown,
   ChevronUp,
   ListTodo,
@@ -32,6 +33,7 @@ import { toast } from "sonner";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { BrickIcon } from "@/components/shared/brick-icon";
 import { EmptyState } from "@/components/shared/empty-state";
+import { EventDateRangePopup, EventTimeRangePopup } from "@/components/shared/event-date-time-popups";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -203,12 +205,6 @@ function getSegmentTextColor(hex: string) {
   return `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`;
 }
 
-function toLocalDateTimeInputValue(date: Date) {
-  const local = new Date(date);
-  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-  return local.toISOString().slice(0, 16);
-}
-
 export default function HomePage() {
   const queryClient = useQueryClient();
   const [selectedBrick, setSelectedBrick] = React.useState("all");
@@ -222,8 +218,12 @@ export default function HomePage() {
   const [eventTitle, setEventTitle] = React.useState("");
   const [eventLocation, setEventLocation] = React.useState("");
   const [eventIsAllDay, setEventIsAllDay] = React.useState(false);
-  const [eventStart, setEventStart] = React.useState("");
-  const [eventEnd, setEventEnd] = React.useState("");
+  const [eventStartDate, setEventStartDate] = React.useState("");
+  const [eventEndDate, setEventEndDate] = React.useState("");
+  const [eventStartTime, setEventStartTime] = React.useState("");
+  const [eventEndTime, setEventEndTime] = React.useState("");
+  const [eventDatePopupOpen, setEventDatePopupOpen] = React.useState(false);
+  const [eventTimePopupOpen, setEventTimePopupOpen] = React.useState(false);
   const [newEventBrick, setNewEventBrick] = React.useState("");
   const [expandedEventId, setExpandedEventId] = React.useState<string | null>(
     null,
@@ -347,6 +347,11 @@ export default function HomePage() {
     },
     [filteredEvents, selectedDate],
   );
+  const hasEventDateRange = Boolean(eventStartDate && eventEndDate);
+  const eventDateSummary = hasEventDateRange
+    ? `${eventStartDate} - ${eventEndDate}`
+    : "";
+  const hasEventTimeRange = Boolean(eventStartTime && eventEndTime);
 
   const createBrickMutation = useMutation({
     mutationFn: () => {
@@ -379,12 +384,16 @@ export default function HomePage() {
         throw new Error("Title is required");
       }
 
-      if (!eventStart || !eventEnd) {
-        throw new Error("Start and end date/time are required");
+      if (!eventStartDate || !eventEndDate) {
+        throw new Error("Start and end dates are required");
       }
 
-      const startDate = new Date(eventStart);
-      const endDate = new Date(eventEnd);
+      if (!eventIsAllDay && (!eventStartTime || !eventEndTime)) {
+        throw new Error("Start and end times are required");
+      }
+
+      const startDate = new Date(`${eventStartDate}T${(eventStartTime || "00:00")}:00`);
+      const endDate = new Date(`${eventEndDate}T${(eventEndTime || "00:00")}:00`);
 
       if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
         throw new Error("Invalid start or end date/time");
@@ -413,8 +422,12 @@ export default function HomePage() {
       setEventTitle("");
       setEventLocation("");
       setEventIsAllDay(false);
-      setEventStart("");
-      setEventEnd("");
+      setEventStartDate("");
+      setEventEndDate("");
+      setEventStartTime("");
+      setEventEndTime("");
+      setEventDatePopupOpen(false);
+      setEventTimePopupOpen(false);
     },
     onError: (error: Error) =>
       toast.error(error.message || "Failed to create event"),
@@ -452,15 +465,20 @@ export default function HomePage() {
       return;
     }
 
-    const start = startOfDay(selectedDate);
-    start.setHours(9, 0, 0, 0);
-    const end = new Date(start);
-    end.setHours(10, 0, 0, 0);
-
-    setEventStart(toLocalDateTimeInputValue(start));
-    setEventEnd(toLocalDateTimeInputValue(end));
+    setEventDatePopupOpen(false);
+    setEventTimePopupOpen(false);
+    setEventStartDate("");
+    setEventEndDate("");
+    setEventStartTime("");
+    setEventEndTime("");
     setNewEventBrick(selectedBrick === "all" ? "" : selectedBrick);
-  }, [createEventOpen, selectedBrick, selectedDate]);
+  }, [createEventOpen, selectedBrick]);
+
+  React.useEffect(() => {
+    if (!hasEventDateRange) {
+      setEventTimePopupOpen(false);
+    }
+  }, [hasEventDateRange]);
 
   React.useEffect(() => {
     if (!selectedDateEvents.length) {
@@ -911,23 +929,45 @@ export default function HomePage() {
               value={eventLocation}
               onChange={(event) => setEventLocation(event.target.value)}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                type="datetime-local"
-                value={eventStart}
-                onChange={(event) => setEventStart(event.target.value)}
-              />
-              <Input
-                type="datetime-local"
-                value={eventEnd}
-                onChange={(event) => setEventEnd(event.target.value)}
-              />
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="font-poppins inline-flex items-center gap-2 rounded-full px-1 text-[20px] leading-[120%] font-medium text-[#4D4D4D]"
+                onClick={() => setEventDatePopupOpen(true)}
+              >
+                <CalendarClock className="size-5" />
+                Choose a date
+              </button>
+              {eventDateSummary ? <p className="text-[12px] text-[#8890A0]">{eventDateSummary}</p> : null}
             </div>
+            {!eventIsAllDay ? (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="font-poppins inline-flex items-center gap-2 rounded-full px-1 text-[20px] leading-[120%] font-medium text-[#4D4D4D] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setEventTimePopupOpen(true)}
+                  disabled={!hasEventDateRange}
+                >
+                  <Clock3 className="size-5" />
+                  Set time
+                </button>
+                {hasEventTimeRange ? (
+                  <p className="text-[12px] text-[#8890A0]">
+                    {eventStartTime} - {eventEndTime}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex items-center justify-between rounded-xl border border-[#E4E8F0] p-3">
               <p className="font-medium text-[#3A404D]">All day</p>
               <Switch
                 checked={eventIsAllDay}
-                onCheckedChange={setEventIsAllDay}
+                onCheckedChange={(checked) => {
+                  setEventIsAllDay(checked);
+                  if (checked) {
+                    setEventTimePopupOpen(false);
+                  }
+                }}
               />
             </div>
             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
@@ -963,6 +1003,27 @@ export default function HomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EventDateRangePopup
+        open={eventDatePopupOpen}
+        onOpenChange={setEventDatePopupOpen}
+        startDate={eventStartDate}
+        endDate={eventEndDate}
+        onApply={({ startDate, endDate }) => {
+          setEventStartDate(startDate);
+          setEventEndDate(endDate);
+        }}
+      />
+      <EventTimeRangePopup
+        open={eventTimePopupOpen}
+        onOpenChange={setEventTimePopupOpen}
+        startTime={eventStartTime}
+        endTime={eventEndTime}
+        onApply={({ startTime, endTime }) => {
+          setEventStartTime(startTime);
+          setEventEndTime(endTime);
+        }}
+      />
     </div>
   );
 }
