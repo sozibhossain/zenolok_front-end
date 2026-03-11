@@ -730,14 +730,12 @@ export default function HomePage() {
                 <div className="space-y-0 rounded-[18px] border border-[#D7DCE6] bg-white">
                   {weeks.map((week, weekIndex) => {
                     const weekInfo = buildWeekSegments(week, filteredEvents);
-                    const visibleSegments = weekInfo.segments.filter(
-                      (segment) => segment.lane < 3,
-                    );
+                    const shouldScrollSegments = weekInfo.laneCount > 3;
 
                     return (
                       <div
                         key={`${format(week[0], "yyyy-MM-dd")}-${weekIndex}`}
-                        className="relative grid grid-cols-7 border-b border-[#DDE2EC] last:border-b-0"
+                        className="relative grid grid-cols-7 overflow-hidden border-b border-[#DDE2EC] last:border-b-0"
                       >
                         {week.map((day) => {
                           const isInSelectedRange =
@@ -797,7 +795,7 @@ export default function HomePage() {
                               }`}
                             >
                               <span
-                                className={`font-poppins inline-flex min-w-[32px] items-center justify-center rounded-xl px-2 text-[20px] leading-[120%] font-medium ${
+                                className={`font-poppins inline-flex min-w-[32px] items-center justify-center rounded-xl pb-6 px-2 text-[20px] leading-[120%] font-medium ${
                                   isInSelectedRange
                                     ? "text-[#2E333E]"
                                     : isSameMonth(day, monthCursor)
@@ -811,9 +809,15 @@ export default function HomePage() {
                           );
                         })}
 
-                        <div className="pointer-events-none absolute inset-x-0 top-10 px-[2px]">
-                          <div className="grid grid-cols-7 auto-rows-[24px]">
-                            {visibleSegments.map((segment) => (
+                        <div className="pointer-events-none absolute inset-x-0 top-20 px-[2px]">
+                          <div
+                            className={`grid grid-cols-7 auto-rows-[24px] ${
+                              shouldScrollSegments
+                                ? "pointer-events-auto max-h-[72px] overflow-y-auto pr-1"
+                                : ""
+                            }`}
+                          >
+                            {weekInfo.segments.map((segment) => (
                               <div
                                 key={segment.id}
                                 style={{
@@ -825,7 +829,7 @@ export default function HomePage() {
                                   ),
                                   color: getSegmentTextColor(segment.color),
                                 }}
-                                className="mx-[1px] flex h-[18px] items-center overflow-hidden rounded-[1px] mt-14"
+                                className="mx-[1px] flex h-[18px] items-center overflow-hidden rounded-[1px]"
                               >
                                 {segment.isStart ? (
                                   <>
@@ -842,12 +846,6 @@ export default function HomePage() {
                             ))}
                           </div>
                         </div>
-
-                        {weekInfo.laneCount > 3 ? (
-                          <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-[#EDEFF4] px-1.5 py-0.5 text-[10px] text-[#6C7486]">
-                            +{weekInfo.laneCount - 3}
-                          </div>
-                        ) : null}
                       </div>
                     );
                   })}

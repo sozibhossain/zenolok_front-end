@@ -81,6 +81,8 @@ function DayPill({
   inCurrentMonth,
   isStart,
   isEnd,
+  isRangeStart,
+  isRangeEnd,
   inRange,
   onClick,
 }: {
@@ -88,22 +90,31 @@ function DayPill({
   inCurrentMonth: boolean;
   isStart: boolean;
   isEnd: boolean;
+  isRangeStart: boolean;
+  isRangeEnd: boolean;
   inRange: boolean;
   onClick: () => void;
 }) {
+  const isSunday = inCurrentMonth && day.getDay() === 0;
   let className =
-    "flex size-9 items-center justify-center rounded-full text-[17px] leading-none transition";
+    "flex h-9 items-center justify-center text-[17px] leading-none transition-colors";
 
-  if (isStart) {
-    className += " bg-[#F07373] text-white";
-  } else if (isEnd) {
-    className += " bg-[#4B4D54] text-white";
+  if (isRangeStart) {
+    className += " w-full rounded-l-full rounded-r-none bg-[#F07373] text-white";
+  } else if (isRangeEnd) {
+    className += " w-full rounded-r-full rounded-l-none bg-[#4B4D54] text-white";
   } else if (inRange) {
-    className += " bg-[#BEC2CB] text-[#474B53]";
+    className += " w-full rounded-none bg-[#4B4D54] text-white";
+  } else if (isStart) {
+    className += " mx-auto size-9 rounded-full bg-[#F07373] text-white";
+  } else if (isEnd) {
+    className += " mx-auto size-9 rounded-full bg-[#4B4D54] text-white";
+  } else if (isSunday) {
+    className += " mx-auto size-9 rounded-full bg-[#F07373] text-white hover:bg-[#ea6a6a]";
   } else if (inCurrentMonth) {
-    className += " bg-[#B6B8BC] text-white hover:bg-[#AEB0B4]";
+    className += " mx-auto size-9 rounded-full bg-[#B6B8BC] text-white hover:bg-[#AEB0B4]";
   } else {
-    className += " bg-[#D4D6DB] text-[#9CA1AA]";
+    className += " mx-auto size-9 rounded-full bg-[#D4D6DB] text-[#9CA1AA]";
   }
 
   return (
@@ -337,15 +348,18 @@ export function EventDateRangePopup({
                     <p
                       key={`${label}-${index}`}
                       className={`text-center text-[11px] leading-none ${
-                        label === "S" ? "text-[#F07373]" : "text-[#9BA0AA]"
+                        index === 0 ? "text-[#F07373]" : "text-[#9BA0AA]"
                       }`}
                     >
                       {label}
                     </p>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-x-0 gap-y-2">
                   {days.map((day) => {
+                    const hasRange = Boolean(
+                      draftStart && draftEnd && !isSameDay(draftStart, draftEnd),
+                    );
                     const isStart = Boolean(draftStart && isSameDay(day, draftStart));
                     const isEnd = Boolean(draftEnd && isSameDay(day, draftEnd));
                     const inRange = Boolean(
@@ -362,6 +376,8 @@ export function EventDateRangePopup({
                         inCurrentMonth={isSameMonth(day, cursorMonth)}
                         isStart={isStart}
                         isEnd={isEnd}
+                        isRangeStart={hasRange && isStart}
+                        isRangeEnd={hasRange && isEnd}
                         inRange={inRange}
                         onClick={() => handleDaySelect(day)}
                       />
