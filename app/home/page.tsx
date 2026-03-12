@@ -25,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Bell,
+  AlarmClock,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ type CalendarEvent = {
   title: string;
   start: Date;
   end: Date;
+  spansMultipleDays: boolean;
   color: string;
   location: string;
   brickName?: string;
@@ -294,6 +296,7 @@ export default function HomePage() {
       const start = startOfDay(new Date(event.startTime));
       const rawEnd = startOfDay(new Date(event.endTime));
       const end = rawEnd < start ? start : rawEnd;
+      const spansMultipleDays = differenceInCalendarDays(end, start) > 0;
 
       const titleLower = event.title.toLowerCase();
       const color = titleLower.includes("exhibition week")
@@ -305,6 +308,7 @@ export default function HomePage() {
         title: event.title,
         start,
         end,
+        spansMultipleDays,
         color,
         location: event.location || "No location",
         brickName: event.brick?.name,
@@ -591,8 +595,11 @@ export default function HomePage() {
                           </div>
 
                           <div className="flex shrink-0 items-center gap-1 text-[#A2A9B7]">
-                            <RefreshCw className="size-4" />
+                            {event.spansMultipleDays ? (
+                              <RefreshCw className="size-4" />
+                            ) : null}
                             <Bell className="size-4" />
+                            <AlarmClock className="size-5" />
                             <button
                               type="button"
                               className="inline-flex items-center justify-center"

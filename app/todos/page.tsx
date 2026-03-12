@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format } from "date-fns";
 import {
   Bell,
   CalendarClock,
@@ -40,6 +40,8 @@ interface CategoryWithItems extends TodoCategory {
   items: TodoItem[];
 }
 
+type ScheduledStatusTab = "unfinished" | "finished" | "all";
+
 function toDateInputValue(value?: string) {
   if (!value) {
     return "";
@@ -68,6 +70,48 @@ function toLocalDateTimeInputValue(value?: string) {
   return local.toISOString().slice(0, 16);
 }
 
+function getTodoCategoryMeta(todo: TodoItem) {
+  if (todo.categoryId && typeof todo.categoryId !== "string") {
+    return {
+      id: todo.categoryId._id,
+      name: todo.categoryId.name,
+      color: todo.categoryId.color,
+    };
+  }
+
+  return {
+    id: typeof todo.categoryId === "string" ? todo.categoryId : "",
+    name: "All",
+    color: "#38A8E8",
+  };
+}
+
+function getScheduledOffsetLabel(value?: string) {
+  if (!value) {
+    return "No date";
+  }
+
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) {
+    return "No date";
+  }
+
+  const deltaMs = target.getTime() - Date.now();
+  const isOverdue = deltaMs < 0;
+  const absoluteMs = Math.abs(deltaMs);
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+
+  const amount =
+    absoluteMs >= dayMs
+      ? Math.max(1, Math.round(absoluteMs / dayMs))
+      : Math.max(1, Math.round(absoluteMs / hourMs));
+  const unit = absoluteMs >= dayMs ? "day" : "hour";
+  const suffix = amount > 1 ? "s" : "";
+
+  return isOverdue ? `-${amount} ${unit}${suffix}` : `${amount} ${unit}${suffix}`;
+}
+
 function CategoryCard({
   category,
   onToggle,
@@ -85,7 +129,8 @@ function CategoryCard({
   onEditCategoryRequest: (category: CategoryWithItems) => void;
   onDeleteCategoryRequest: (categoryId: string) => void;
 }) {
-  const unfinished = (category.items || []).filter((item) => !item.isCompleted);
+  const items = category.items || [];
+  const unfinished = items.filter((item) => !item.isCompleted);
 
   return (
     <div
@@ -137,7 +182,7 @@ function CategoryCard({
       </div>
 
       <div className="space-y-2">
-        {unfinished.slice(0, 3).map((item) => (
+        {items.slice(0, 3).map((item) => (
           <div key={item._id} className="flex items-center gap-2 text-[18px] text-[#3D4351]">
             <input
               type="checkbox"
@@ -146,7 +191,9 @@ function CategoryCard({
               onChange={() => onToggle({ id: item._id, isCompleted: !item.isCompleted })}
               className="size-4 rounded-full border border-[#A3ABBC]"
             />
-            <span className="flex-1 truncate">{item.text}</span>
+            <span className={`flex-1 truncate ${item.isCompleted ? "text-[#A2A9B7] line-through" : ""}`}>
+              {item.text}
+            </span>
             <div className="flex items-center gap-1 text-[#B5BBC8]">
               {item.scheduledDate ? (
                 <span className="inline-flex items-center gap-1 text-[11px] leading-none">
@@ -190,8 +237,8 @@ function CategoryCard({
         Add todo
       </button>
 
-      {unfinished.length > 3 ? (
-        <p className="font-poppins mt-1 text-[14px] leading-[120%] text-[#9AA2B2]">+{unfinished.length - 3}</p>
+      {items.length > 3 ? (
+        <p className="font-poppins mt-1 text-[14px] leading-[120%] text-[#9AA2B2]">+{items.length - 3}</p>
       ) : null}
     </div>
   );
@@ -226,6 +273,8 @@ export default function TodosPage() {
   const [repeatValue, setRepeatValue] = React.useState<RepeatValue>("daily");
   const [newCategoryName, setNewCategoryName] = React.useState("");
   const [newCategoryColor, setNewCategoryColor] = React.useState("#F7C700");
+  const [scheduledStatusTab, setScheduledStatusTab] = React.useState<ScheduledStatusTab>("unfinished");
+  const [scheduledCategoryFilter, setScheduledCategoryFilter] = React.useState("all");
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categoriesWithItems,
@@ -233,8 +282,8 @@ export default function TodosPage() {
   });
 
   const scheduledQuery = useQuery({
-    queryKey: queryKeys.scheduledTodos({ status: "unfinished" }),
-    queryFn: () => todoItemApi.getScheduled({ status: "unfinished" }),
+    queryKey: queryKeys.scheduledTodos({ scope: "scheduled-panel" }),
+    queryFn: () => todoItemApi.getScheduled({}),
   });
 
   const createTodoMutation = useMutation({
@@ -367,6 +416,45 @@ export default function TodosPage() {
   }, [selectedCategory, selectedTodoId]);
 
   const paged = React.useMemo(() => paginateArray(categories, page, 6), [categories, page]);
+
+  const scheduledItems = React.useMemo(
+    () => (scheduledQuery.data || []).filter((todo) => Boolean(todo.scheduledDate)),
+    [scheduledQuery.data],
+  );
+
+  const scheduledCategoryOptions = React.useMemo(() => {
+    const seen = new Set<string>();
+
+    return scheduledItems
+      .map((todo) => getTodoCategoryMeta(todo))
+      .filter((meta) => {
+        if (!meta.id || seen.has(meta.id)) {
+          return false;
+        }
+        seen.add(meta.id);
+        return true;
+      });
+  }, [scheduledItems]);
+
+  const visibleScheduledItems = React.useMemo(() => {
+    return scheduledItems.filter((todo) => {
+      if (scheduledStatusTab === "unfinished" && todo.isCompleted) {
+        return false;
+      }
+      if (scheduledStatusTab === "finished" && !todo.isCompleted) {
+        return false;
+      }
+
+      if (scheduledCategoryFilter !== "all") {
+        const category = getTodoCategoryMeta(todo);
+        if (category.id !== scheduledCategoryFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [scheduledItems, scheduledStatusTab, scheduledCategoryFilter]);
 
   React.useEffect(() => {
     setPage(1);
@@ -546,18 +634,111 @@ export default function TodosPage() {
 
             {scheduledQuery.isLoading ? (
               <SectionLoading rows={4} />
-            ) : scheduledQuery.data?.length ? (
-              <div className="space-y-2">
-                {scheduledQuery.data.slice(0, 4).map((todo) => (
-                  <div key={todo._id} className="rounded-xl bg-white px-3 py-2">
-                    <p className="font-poppins text-[14px] leading-[120%] text-[#8D95A7]">
-                      {todo.scheduledDate
-                        ? formatDistanceToNowStrict(new Date(todo.scheduledDate), { addSuffix: true })
-                        : "No date"}
-                    </p>
-                    <p className="font-poppins text-[20px] leading-[120%] font-medium text-[#3D4351]">{todo.text}</p>
-                  </div>
-                ))}
+            ) : scheduledItems.length ? (
+              <div className="rounded-[24px] bg-[#ECEFF4] p-3">
+                <div className="mb-3 grid grid-cols-3 rounded-full bg-[#E4E7ED] p-1 text-[14px]">
+                  {(["unfinished", "finished", "all"] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setScheduledStatusTab(status)}
+                      className={`rounded-full px-2 py-1 capitalize transition ${
+                        scheduledStatusTab === status
+                          ? "bg-white font-medium text-[#3E4451]"
+                          : "text-[#ADB3BF]"
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mb-3 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setScheduledCategoryFilter("all")}
+                    className={`rounded-full border px-3 py-0.5 text-[18px] ${
+                      scheduledCategoryFilter === "all"
+                        ? "border-[#D4D9E3] bg-white text-[#9AA1AE]"
+                        : "border-transparent bg-[#EFF2F7] text-[#B3BAC6]"
+                    }`}
+                  >
+                    All
+                  </button>
+                  {scheduledCategoryOptions.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setScheduledCategoryFilter(category.id)}
+                      className={`rounded-full border px-3 py-0.5 text-[18px] transition ${
+                        scheduledCategoryFilter === category.id
+                          ? "text-white"
+                          : "bg-white"
+                      }`}
+                      style={{
+                        borderColor: category.color,
+                        backgroundColor:
+                          scheduledCategoryFilter === category.id ? category.color : "white",
+                        color: scheduledCategoryFilter === category.id ? "#FFFFFF" : category.color,
+                      }}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  {visibleScheduledItems.map((todo) => {
+                    const category = getTodoCategoryMeta(todo);
+                    const offsetLabel = getScheduledOffsetLabel(todo.scheduledDate);
+                    const isOverdue = offsetLabel.startsWith("-");
+
+                    return (
+                      <div key={todo._id} className="flex items-center gap-2">
+                        <p
+                          className={`w-[56px] shrink-0 text-right text-[12px] ${
+                            isOverdue ? "text-[#FF6F61]" : "text-[#A6ADBA]"
+                          }`}
+                        >
+                          {offsetLabel}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleTodoMutation.mutate({
+                              id: todo._id,
+                              isCompleted: !todo.isCompleted,
+                            })
+                          }
+                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
+                          style={{ borderColor: category.color || "#38A8E8" }}
+                          aria-label={`Toggle ${todo.text}`}
+                        >
+                          {todo.isCompleted ? (
+                            <span
+                              className="size-2.5 rounded-full"
+                              style={{ backgroundColor: category.color || "#38A8E8" }}
+                            />
+                          ) : null}
+                        </button>
+
+                        <p
+                          className={`font-poppins min-w-0 flex-1 truncate text-[32px] leading-[120%] ${
+                            todo.isCompleted ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"
+                          }`}
+                        >
+                          {todo.text}
+                        </p>
+
+                        <div className="flex shrink-0 items-center gap-1 text-[#BCC2CE]">
+                          <Bell className={`size-4 ${todo.alarm ? "opacity-100" : "opacity-35"}`} />
+                          <Repeat2 className={`size-4 ${todo.repeat ? "opacity-100" : "opacity-35"}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <EmptyState title="No scheduled" description="Set date from todo settings." />

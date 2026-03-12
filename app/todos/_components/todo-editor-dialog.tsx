@@ -1,7 +1,10 @@
 "use client";
 
+import * as React from "react";
+import { format } from "date-fns";
 import { Bell, CalendarDays, ChevronLeft, Clock3, Repeat2, Trash2 } from "lucide-react";
 
+import { EventDateRangePopup, EventTimeRangePopup } from "@/components/shared/event-date-time-popups";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,6 +12,91 @@ import { Switch } from "@/components/ui/switch";
 
 export type TodoEditorMode = "create" | "edit";
 export type RepeatValue = "daily" | "weekly" | "monthly" | "yearly";
+
+function formatDateDisplay(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format(date, "MM/dd/yyyy");
+}
+
+function formatTimeDisplay(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(`1970-01-01T${value}:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format(date, "hh:mm a");
+}
+
+function formatDateTimeDisplay(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format(date, "MM/dd/yyyy hh:mm a");
+}
+
+function getDateFromDateTimeInput(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const rawDate = value.slice(0, 10);
+  if (rawDate.length === 10) {
+    return rawDate;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return format(parsed, "yyyy-MM-dd");
+}
+
+function getTimeFromDateTimeInput(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const rawTime = value.slice(11, 16);
+  if (rawTime.length === 5) {
+    return rawTime;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return format(parsed, "HH:mm");
+}
+
+function mergeDateAndTime(dateValue: string, timeValue: string) {
+  if (!dateValue && !timeValue) {
+    return "";
+  }
+
+  const safeDate = dateValue || format(new Date(), "yyyy-MM-dd");
+  const safeTime = timeValue || "00:00";
+  return `${safeDate}T${safeTime}`;
+}
 
 type TodoEditorDialogProps = {
   open: boolean;
@@ -69,6 +157,11 @@ export function TodoEditorDialog({
   repeatValue,
   onRepeatValueChange,
 }: TodoEditorDialogProps) {
+  const [datePopupOpen, setDatePopupOpen] = React.useState(false);
+  const [timePopupOpen, setTimePopupOpen] = React.useState(false);
+  const [alarmDatePopupOpen, setAlarmDatePopupOpen] = React.useState(false);
+  const [alarmTimePopupOpen, setAlarmTimePopupOpen] = React.useState(false);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[820px] rounded-[30px] border border-[#DDE3EC] bg-[#F7F8FB] p-4 sm:p-5">
@@ -136,12 +229,20 @@ export function TodoEditorDialog({
                 <Switch checked={dateEnabled} onCheckedChange={onDateEnabledChange} />
               </div>
               {dateEnabled ? (
-                <Input
-                  type="date"
-                  value={scheduledDateInput}
-                  onChange={(event) => onScheduledDateChange(event.target.value)}
-                  className="h-10 border-[#D5DBE6] bg-white text-[#5A6070]"
-                />
+                <button
+                  type="button"
+                  onClick={() => setDatePopupOpen(true)}
+                  className="flex h-12 w-full items-center justify-between rounded-xl border border-[#D5DBE6] bg-white px-4"
+                >
+                  <span
+                    className={`text-[24px] leading-[120%] ${
+                      scheduledDateInput ? "text-[#4D5463]" : "text-[#B7BFCC]"
+                    }`}
+                  >
+                    {scheduledDateInput ? formatDateDisplay(scheduledDateInput) : "MM/DD/YYYY"}
+                  </span>
+                  <CalendarDays className="size-6 text-[#101621]" />
+                </button>
               ) : null}
 
               <div className="flex items-center justify-between gap-4">
@@ -152,12 +253,20 @@ export function TodoEditorDialog({
                 <Switch checked={timeEnabled} onCheckedChange={onTimeEnabledChange} />
               </div>
               {timeEnabled ? (
-                <Input
-                  type="time"
-                  value={scheduledTimeInput}
-                  onChange={(event) => onScheduledTimeChange(event.target.value)}
-                  className="h-10 border-[#D5DBE6] bg-white text-[#5A6070]"
-                />
+                <button
+                  type="button"
+                  onClick={() => setTimePopupOpen(true)}
+                  className="flex h-12 w-full items-center justify-between rounded-xl border border-[#D5DBE6] bg-white px-4"
+                >
+                  <span
+                    className={`text-[24px] leading-[120%] ${
+                      scheduledTimeInput ? "text-[#4D5463]" : "text-[#B7BFCC]"
+                    }`}
+                  >
+                    {scheduledTimeInput ? formatTimeDisplay(scheduledTimeInput) : "Set time"}
+                  </span>
+                  <Clock3 className="size-6 text-[#101621]" />
+                </button>
               ) : null}
 
               <div className="flex items-center justify-between gap-4">
@@ -168,12 +277,22 @@ export function TodoEditorDialog({
                 <Switch checked={alarmEnabled} onCheckedChange={onAlarmEnabledChange} />
               </div>
               {alarmEnabled ? (
-                <Input
-                  type="datetime-local"
-                  value={alarmDateTimeInput}
-                  onChange={(event) => onAlarmDateTimeChange(event.target.value)}
-                  className="h-10 border-[#D5DBE6] bg-white text-[#5A6070]"
-                />
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAlarmDatePopupOpen(true)}
+                    className="flex h-12 w-full items-center justify-between rounded-xl border border-[#D5DBE6] bg-white px-4"
+                  >
+                    <span
+                      className={`text-[24px] leading-[120%] ${
+                        alarmDateTimeInput ? "text-[#4D5463]" : "text-[#B7BFCC]"
+                      }`}
+                    >
+                      {alarmDateTimeInput ? formatDateTimeDisplay(alarmDateTimeInput) : "MM/DD/YYYY hh:mm A"}
+                    </span>
+                    <CalendarDays className="size-6 text-[#101621]" />
+                  </button>
+                </>
               ) : null}
 
               <div className="flex items-center justify-between gap-4">
@@ -187,7 +306,7 @@ export function TodoEditorDialog({
                 <select
                   value={repeatValue}
                   onChange={(event) => onRepeatValueChange(event.target.value as RepeatValue)}
-                  className="h-10 w-full rounded-md border border-[#D5DBE6] bg-white px-3 text-sm text-[#5A6070]"
+                  className="h-12 w-full rounded-xl border border-[#D5DBE6] bg-white px-3 text-[16px] text-[#5A6070]"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -218,6 +337,44 @@ export function TodoEditorDialog({
                 {isUpdating ? "Updating..." : "Update todo"}
               </Button>
             </div>
+
+            <EventDateRangePopup
+              open={datePopupOpen}
+              onOpenChange={setDatePopupOpen}
+              startDate={scheduledDateInput}
+              endDate={scheduledDateInput}
+              onApply={({ startDate }) => onScheduledDateChange(startDate)}
+            />
+            <EventTimeRangePopup
+              open={timePopupOpen}
+              onOpenChange={setTimePopupOpen}
+              startTime={scheduledTimeInput}
+              endTime={scheduledTimeInput}
+              onApply={({ startTime }) => onScheduledTimeChange(startTime)}
+            />
+            <EventDateRangePopup
+              open={alarmDatePopupOpen}
+              onOpenChange={setAlarmDatePopupOpen}
+              startDate={getDateFromDateTimeInput(alarmDateTimeInput)}
+              endDate={getDateFromDateTimeInput(alarmDateTimeInput)}
+              onApply={({ startDate }) => {
+                const currentTime = getTimeFromDateTimeInput(alarmDateTimeInput);
+                onAlarmDateTimeChange(mergeDateAndTime(startDate, currentTime));
+                setAlarmDatePopupOpen(false);
+                setAlarmTimePopupOpen(true);
+              }}
+            />
+            <EventTimeRangePopup
+              open={alarmTimePopupOpen}
+              onOpenChange={setAlarmTimePopupOpen}
+              startTime={getTimeFromDateTimeInput(alarmDateTimeInput)}
+              endTime={getTimeFromDateTimeInput(alarmDateTimeInput)}
+              onApply={({ startTime }) => {
+                const currentDate = getDateFromDateTimeInput(alarmDateTimeInput);
+                onAlarmDateTimeChange(mergeDateAndTime(currentDate, startTime));
+                setAlarmTimePopupOpen(false);
+              }}
+            />
           </div>
         )}
       </DialogContent>

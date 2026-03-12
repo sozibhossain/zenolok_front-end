@@ -23,6 +23,16 @@ export interface UserProfile {
   avatar?: AvatarData;
 }
 
+export interface UserListData {
+  users: UserProfile[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export interface Brick {
   _id: string;
   name: string;
@@ -89,6 +99,8 @@ export interface JamMessage {
   user: {
     _id: string;
     name?: string;
+    username?: string;
+    avatar?: AvatarData;
     profilePicture?: string;
   };
   messageType: "text" | "media" | "file" | "link";
@@ -165,6 +177,8 @@ export const authApi = {
 
 export const userApi = {
   getProfile: () => unwrap<UserProfile>(apiClient.get("/user/profile")),
+  getAll: (params?: { page?: number; limit?: number; role?: string; q?: string }) =>
+    unwrap<UserListData>(apiClient.get("/user", withParams(undefined, params || {}))),
   updateProfile: (payload: FormData) =>
     unwrap<UserProfile>(apiClient.patch("/user/update-profile", payload, {
       headers: { "Content-Type": "multipart/form-data" },

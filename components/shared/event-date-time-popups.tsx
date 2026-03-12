@@ -224,29 +224,64 @@ export function EventDateRangePopup({
     return filteredYears[0] ?? null;
   }, [filteredYears, cursorMonth]);
 
+  const scrollToActiveYear = React.useCallback(() => {
+    const scroller = yearsScrollRef.current;
+    const target = activeYearRef.current;
+    if (!scroller || !target || scroller.clientHeight === 0) {
+      return false;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const targetTopInScroller = targetRect.top - scrollerRect.top + scroller.scrollTop;
+    const centeredScrollTop =
+      targetTopInScroller - scroller.clientHeight / 2 + targetRect.height / 2;
+
+    scroller.scrollTop = Math.max(0, centeredScrollTop);
+    return true;
+  }, []);
+
   React.useEffect(() => {
     if (!open || view !== "month" || scrollTargetYear === null) {
       return;
     }
 
-    const scroller = yearsScrollRef.current;
-    const target = activeYearRef.current;
-    if (!scroller || !target) {
-      return;
-    }
+    let cancelled = false;
+    let attempt = 0;
+    let frameId: number | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const frameId = window.requestAnimationFrame(() => {
-      const scrollerRect = scroller.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const targetTopInScroller = targetRect.top - scrollerRect.top + scroller.scrollTop;
-      const centeredScrollTop =
-        targetTopInScroller - scroller.clientHeight / 2 + targetRect.height / 2;
+    const tryScroll = () => {
+      if (cancelled) {
+        return;
+      }
 
-      scroller.scrollTop = Math.max(0, centeredScrollTop);
-    });
+      if (scrollToActiveYear()) {
+        return;
+      }
 
-    return () => window.cancelAnimationFrame(frameId);
-  }, [open, view, scrollTargetYear]);
+      attempt += 1;
+      if (attempt >= 8) {
+        return;
+      }
+
+      timeoutId = setTimeout(() => {
+        frameId = window.requestAnimationFrame(tryScroll);
+      }, 40);
+    };
+
+    frameId = window.requestAnimationFrame(tryScroll);
+
+    return () => {
+      cancelled = true;
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [open, view, scrollTargetYear, filteredYears.length, scrollToActiveYear]);
 
   const handleDaySelect = (day: Date) => {
     if (!draftStart || draftEnd) {

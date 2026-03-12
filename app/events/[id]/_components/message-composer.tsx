@@ -28,8 +28,8 @@ export function MessageComposer({
           {selectedFileName}
         </div>
       ) : null}
-      <div className="flex items-center gap-2 rounded-full border border-[#D7DDE7] bg-[#F7F9FC] px-2 py-1">
-        <label className="cursor-pointer p-1 text-[#939AA7] transition hover:text-[#667083]">
+      <div className="flex items-center gap-2 rounded-full border border-[#D7DDE7] bg-white px-2.5 py-1.5">
+        <label className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full text-[#B1B7C3] transition hover:bg-[#F1F4F9] hover:text-[#7A8190]">
           <ImagePlus className="size-4" />
           <input
             type="file"
@@ -47,16 +47,16 @@ export function MessageComposer({
             }
           }}
           placeholder="Type here..."
-          className="h-7 rounded-full border-none bg-transparent px-0 text-[13px] placeholder:text-[#B2B9C7]"
+          className="h-8 rounded-full border-none bg-transparent px-0 text-[17px] text-[#616772] placeholder:text-[#D1D5DD]"
         />
         <button
           type="button"
-          className="flex size-6 items-center justify-center rounded-full bg-[#E8F4FE] text-[#32ADE6] disabled:opacity-40"
+          className="inline-flex size-7 items-center justify-center rounded-full text-[#32ADE6] transition hover:bg-[#EAF6FF] disabled:opacity-40"
           onClick={onSend}
           disabled={isSending}
           aria-label="Send message"
         >
-          <Send className="size-3.5" />
+          <Send className="size-4" />
         </button>
       </div>
     </div>

@@ -15,8 +15,9 @@ import {
   ImagePlus,
   Link2,
   Locate,
+  Maximize2,
   Paperclip,
-  Share2,
+  UserPlus,
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -27,6 +28,7 @@ import {
   eventApi,
   eventTodoApi,
   jamApi,
+  userApi,
   type EventData,
   type EventTodo,
   type JamMessage,
@@ -42,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -53,8 +56,12 @@ import {
 
 function mapParticipants(participants: EventData["participants"]) {
   const mapped = participants
-    .map((participant) => (typeof participant === "string" ? null : participant))
-    .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
+    .map((participant) =>
+      typeof participant === "string" ? null : participant,
+    )
+    .filter((participant): participant is NonNullable<typeof participant> =>
+      Boolean(participant),
+    );
 
   const seen = new Set<string>();
   return mapped.filter((participant) => {
@@ -66,8 +73,24 @@ function mapParticipants(participants: EventData["participants"]) {
   });
 }
 
-function getParticipantDisplayName(participant: { name?: string; username?: string; email?: string }) {
-  return participant.name || participant.username || participant.email || "User";
+function mapParticipantIds(participants: EventData["participants"]) {
+  const ids = participants
+    .map((participant) =>
+      typeof participant === "string" ? participant : participant._id,
+    )
+    .filter((participantId): participantId is string => Boolean(participantId));
+
+  return Array.from(new Set(ids));
+}
+
+function getParticipantDisplayName(participant: {
+  name?: string;
+  username?: string;
+  email?: string;
+}) {
+  return (
+    participant.name || participant.username || participant.email || "User"
+  );
 }
 
 function isLinkText(value: string) {
@@ -75,7 +98,11 @@ function isLinkText(value: string) {
 }
 
 function getDisplayNameFromMessage(message: JamMessage) {
-  return message.user.name || "User";
+  return message.user.name || message.user.username || "User";
+}
+
+function getMessageAvatarUrl(message: JamMessage) {
+  return message.user.avatar?.url || message.user.profilePicture;
 }
 
 function formatMessageStamp(value: string) {
@@ -87,13 +114,16 @@ function formatMessageStamp(value: string) {
 }
 
 function getMessageLabel(message: JamMessage) {
-  return message.text || message.fileName || (message.messageType === "link" ? "Link" : "Media");
+  return (
+    message.text ||
+    message.fileName ||
+    (message.messageType === "link" ? "Link" : "Media")
+  );
 }
 
 function sortMessagesByCreatedAt(messages: JamMessage[]) {
   return [...messages].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 }
 
@@ -114,12 +144,19 @@ export default function EventDetailsPage() {
 
   const [newTodoText, setNewTodoText] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [shareUrl, setShareUrl] = useState("");
-  const [selectedDates, setSelectedDates] = useState<DateRange | undefined>(undefined);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>(
+    [],
+  );
+  const [selectedDates, setSelectedDates] = useState<DateRange | undefined>(
+    undefined,
+  );
   const [dateDialogOpen, setDateDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [jamView, setJamView] = useState<"jam" | "messages" | "media">("jam");
-  const [libraryTab, setLibraryTab] = useState<"media" | "files" | "link">("media");
+  const [jamView, setJamView] = useState<"jam" | "media">("jam");
+  const [libraryTab, setLibraryTab] = useState<"media" | "files" | "link">(
+    "media",
+  );
   const socketRef = React.useRef<Socket | null>(null);
   const socketServerUrl = React.useMemo(
     () =>
@@ -147,6 +184,26 @@ export default function EventDetailsPage() {
     queryKey: queryKeys.jamMessages(id),
     queryFn: () => jamApi.getByEvent(id),
     enabled: Boolean(id),
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ["users-for-event-share"],
+    queryFn: async () => {
+      const firstPage = await userApi.getAll({ page: 1, limit: 200 });
+      const totalUsers = firstPage.meta.total;
+
+      if (totalUsers > firstPage.users.length) {
+        return userApi.getAll({ page: 1, limit: totalUsers });
+      }
+
+      return firstPage;
+    },
+    enabled: shareDialogOpen,
+  });
+
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile,
+    queryFn: userApi.getProfile,
   });
 
   React.useEffect(() => {
@@ -198,16 +255,18 @@ export default function EventDetailsPage() {
     };
   }, [id, queryClient, socketServerUrl]);
 
-  React.useEffect(() => {
-    setShareUrl(window.location.href);
-  }, [id]);
-
   const refreshEverything = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.event(id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.eventTodos(id) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.events({ filter: "upcoming" }) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.events({ filter: "past" }) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.events({ filter: "all" }) });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.events({ filter: "upcoming" }),
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.events({ filter: "past" }),
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.events({ filter: "all" }),
+    });
     queryClient.invalidateQueries({ queryKey: queryKeys.jamMessages(id) });
   };
 
@@ -218,7 +277,8 @@ export default function EventDetailsPage() {
       router.push("/events");
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete event"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to delete event"),
   });
 
   const updateEventMutation = useMutation({
@@ -227,7 +287,8 @@ export default function EventDetailsPage() {
       toast.success("Event updated");
       refreshEverything();
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to update event"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to update event"),
   });
 
   const addTodoMutation = useMutation({
@@ -246,20 +307,28 @@ export default function EventDetailsPage() {
       setNewTodoText("");
       refreshEverything();
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to add todo"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to add todo"),
   });
 
   const updateTodoMutation = useMutation({
-    mutationFn: ({ todoId, payload }: { todoId: string; payload: Partial<EventTodo> }) =>
-      eventTodoApi.update(todoId, payload),
+    mutationFn: ({
+      todoId,
+      payload,
+    }: {
+      todoId: string;
+      payload: Partial<EventTodo>;
+    }) => eventTodoApi.update(todoId, payload),
     onSuccess: refreshEverything,
-    onError: (error: Error) => toast.error(error.message || "Failed to update todo"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to update todo"),
   });
 
   const deleteTodoMutation = useMutation({
     mutationFn: (todoId: string) => eventTodoApi.delete(todoId),
     onSuccess: refreshEverything,
-    onError: (error: Error) => toast.error(error.message || "Failed to delete todo"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to delete todo"),
   });
 
   const sendMessageMutation = useMutation({
@@ -272,7 +341,11 @@ export default function EventDetailsPage() {
       let messageType: "text" | "media" | "file" | "link" = "text";
 
       if (selectedFile) {
-        messageType = selectedFile.type.startsWith("image/") || selectedFile.type.startsWith("video/") ? "media" : "file";
+        messageType =
+          selectedFile.type.startsWith("image/") ||
+          selectedFile.type.startsWith("video/")
+            ? "media"
+            : "file";
       } else if (nextText && isLinkText(nextText)) {
         messageType = "link";
       }
@@ -298,72 +371,95 @@ export default function EventDetailsPage() {
         (previous = []) => appendMessageIfMissing(previous, message),
       );
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to send message"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to send message"),
   });
 
   const event = eventQuery.data;
-  const participants = useMemo(() => mapParticipants(event?.participants || []), [event?.participants]);
+  const participants = useMemo(
+    () => mapParticipants(event?.participants || []),
+    [event?.participants],
+  );
+  const viewerId = profileQuery.data?._id;
+  const currentParticipantIds = useMemo(
+    () => new Set(mapParticipantIds(event?.participants || [])),
+    [event?.participants],
+  );
+
+  React.useEffect(() => {
+    if (!shareDialogOpen || !event) {
+      return;
+    }
+
+    setSelectedShareUserIds(mapParticipantIds(event.participants || []));
+  }, [shareDialogOpen, event]);
 
   if (eventQuery.isLoading) {
     return <SectionLoading rows={6} />;
   }
 
   if (!event) {
-    return <EmptyState title="Event not found" description="The event was removed or you don't have access." />;
+    return (
+      <EmptyState
+        title="Event not found"
+        description="The event was removed or you don't have access."
+      />
+    );
   }
 
   const messages = messagesQuery.data || [];
-  const privateTodos = (eventTodosQuery.data || []).filter((todo) => !todo.isShared);
-  const mediaMessages = messages.filter((message) => message.messageType === "media" || Boolean(message.mediaUrl));
+  const privateTodos = (eventTodosQuery.data || []).filter(
+    (todo) => !todo.isShared,
+  );
+  const mediaMessages = messages.filter(
+    (message) => message.messageType === "media" || Boolean(message.mediaUrl),
+  );
   const fileMessages = messages.filter(
     (message) =>
       message.messageType === "file" ||
-      (!message.mediaUrl && Boolean(message.fileName) && message.messageType !== "link")
+      (!message.mediaUrl &&
+        Boolean(message.fileName) &&
+        message.messageType !== "link"),
   );
   const linkMessages = messages.filter(
-    (message) => message.messageType === "link" || isLinkText(message.text || "")
+    (message) =>
+      message.messageType === "link" || isLinkText(message.text || ""),
   );
   const jamPreviewMessages = messages.slice(-2);
   const startDate = new Date(event.startTime);
   const endDate = new Date(event.endTime);
-  const shareMessage = `Join "${event.title}" on Zenolok`;
-  const encodedShareUrl = encodeURIComponent(shareUrl);
-  const encodedShareMessage = encodeURIComponent(shareMessage);
-  const socialLinks = [
-    { label: "WhatsApp", href: `https://wa.me/?text=${encodedShareMessage}%20${encodedShareUrl}` },
-    { label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}` },
-    { label: "X", href: `https://twitter.com/intent/tweet?text=${encodedShareMessage}&url=${encodedShareUrl}` },
-    { label: "Telegram", href: `https://t.me/share/url?url=${encodedShareUrl}&text=${encodedShareMessage}` },
-    { label: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedShareUrl}` },
-  ];
+  const allUsers = usersQuery.data?.users || [];
 
-  const handleCopyShareLink = async () => {
-    if (!shareUrl) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Link copied");
-    } catch {
-      toast.error("Failed to copy link");
-    }
+  const toggleShareUser = (userId: string, checked: boolean) => {
+    setSelectedShareUserIds((previous) => {
+      if (checked) {
+        if (previous.includes(userId)) {
+          return previous;
+        }
+        return [...previous, userId];
+      }
+      return previous.filter((idValue) => idValue !== userId);
+    });
   };
 
-  const handleNativeShare = async () => {
-    if (!shareUrl || typeof navigator === "undefined" || !navigator.share) {
+  const handleShareWithSelectedUsers = () => {
+    const participantIdsToAdd = selectedShareUserIds.filter(
+      (participantId) => !currentParticipantIds.has(participantId),
+    );
+
+    if (!participantIdsToAdd.length) {
+      toast.info("No new users selected");
       return;
     }
 
-    try {
-      await navigator.share({
-        title: event.title,
-        text: shareMessage,
-        url: shareUrl,
-      });
-    } catch {
-      // Ignore cancellation or unsupported browser behavior.
-    }
+    updateEventMutation.mutate(
+      { participants: participantIdsToAdd },
+      {
+        onSuccess: () => {
+          setShareDialogOpen(false);
+        },
+      },
+    );
   };
 
   return (
@@ -418,58 +514,122 @@ export default function EventDetailsPage() {
                 ) : null}
               </div>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  className="text-[#6F7789] transition hover:text-[#2E333B]"
-                  aria-label="Share event"
-                >
-                  <Share2 className="size-[16px]" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg rounded-[26px]">
-                <DialogHeader>
-                  <DialogTitle>Share on social media</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-[#DFE3EC] bg-[#F8FAFD] px-3 py-2 text-sm text-[#687083]">
-                    {shareUrl || "Preparing link..."}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-10 rounded-xl"
-                      onClick={handleCopyShareLink}
-                      disabled={!shareUrl}
-                    >
-                      Copy Link
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-10 rounded-xl"
-                      onClick={handleNativeShare}
-                      disabled={!shareUrl || typeof navigator === "undefined" || !navigator.share}
-                    >
-                      Quick Share
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {socialLinks.map((platform) => (
-                      <a
-                        key={platform.label}
-                        href={platform.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D7DDE8] bg-white px-3 text-sm text-[#4C5463] transition hover:bg-[#F1F5FB]"
+            <div className="mt-1 flex shrink-0 items-center gap-2">
+              <div className="flex items-center">
+                {participants.slice(0, 4).map((participant, index) => (
+                  <Avatar
+                    key={participant._id}
+                    className={`size-6 border-2 border-[#ECEFF4] ${
+                      index === 0 ? "" : "-ml-2"
+                    }`}
+                  >
+                    <AvatarImage src={participant.avatar?.url} />
+                    <AvatarFallback className="text-[14px] bg-gray-300 text-gray-400">
+                      {getParticipantDisplayName(participant).slice(0, 1)}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                {participants.length > 4 ? (
+                  <span className="-ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-[#ECEFF4] bg-[#D7DDE8] px-1 text-[10px] font-medium text-[#4F5767]">
+                    +{participants.length - 4}
+                  </span>
+                ) : null}
+              </div>
+
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="rounded-full p-1 text-[#6F7789] transition hover:bg-white hover:text-[#2E333B]"
+                    aria-label="Add participants"
+                  >
+                    <UserPlus className="size-[16px]" />
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg rounded-[26px] space-y-4">
+                  <DialogHeader>
+                    <DialogTitle className="text-[24px]">
+                      Add participants
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="max-h-52 space-y-1 overflow-y-auto rounded-xl border border-[#D7DDE8] bg-white p-2">
+                        {usersQuery.isLoading ? (
+                          <SectionLoading rows={3} />
+                        ) : usersQuery.isError ? (
+                          <p className="px-2 py-3 text-center text-xs text-[#8F96A5]">
+                            Failed to load users
+                          </p>
+                        ) : allUsers.length ? (
+                          allUsers.map((user) => {
+                            const checked = selectedShareUserIds.includes(
+                              user._id,
+                            );
+                            const alreadyAdded = currentParticipantIds.has(
+                              user._id,
+                            );
+
+                            return (
+                              <label
+                                key={user._id}
+                                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-[#F3F6FB]"
+                              >
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(next) =>
+                                      toggleShareUser(user._id, Boolean(next))
+                                    }
+                                  />
+                                  <Avatar className="size-7 border border-[#d2d8e5]">
+                                    <AvatarImage src={user.avatar?.url} />
+                                    <AvatarFallback>
+                                      {getParticipantDisplayName(user).slice(
+                                        0,
+                                        1,
+                                      )}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm text-[#4C5463]">
+                                      {getParticipantDisplayName(user)}
+                                    </p>
+                                    <p className="truncate text-[11px] text-[#8F96A5]">
+                                      {user.email}
+                                    </p>
+                                  </div>
+                                </div>
+                                {alreadyAdded ? (
+                                  <span className="shrink-0 text-[11px] text-[#7F8796]">
+                                    Added
+                                  </span>
+                                ) : null}
+                              </label>
+                            );
+                          })
+                        ) : (
+                          <p className="px-2 py-3 text-center text-xs text-[#8F96A5]">
+                            No users found
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        className="h-10 w-full rounded-xl text-[20px] font-medium"
+                        onClick={handleShareWithSelectedUsers}
+                        disabled={
+                          usersQuery.isLoading || updateEventMutation.isPending
+                        }
                       >
-                        {platform.label}
-                      </a>
-                    ))}
+                        {updateEventMutation.isPending
+                          ? "Adding..."
+                          : "Add selected participants"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="mt-4 flex items-start justify-between gap-3 text-[#4D4D4D]">
@@ -544,7 +704,9 @@ export default function EventDetailsPage() {
 
                   updateEventMutation.mutate({
                     startTime: selectedDates.from.toISOString(),
-                    endTime: (selectedDates.to || selectedDates.from).toISOString(),
+                    endTime: (
+                      selectedDates.to || selectedDates.from
+                    ).toISOString(),
                   });
                   setDateDialogOpen(false);
                 }}
@@ -589,31 +751,16 @@ export default function EventDetailsPage() {
         ) : null}
 
         <Card className="mt-3 rounded-[22px] border border-[#DCE2EB] bg-[#ECEFF4] p-3.5 shadow-none">
-          {jamView === "messages" ? (
-            <div className="mb-3 flex items-center justify-between text-[#8E95A3]">
-              <button
-                type="button"
-                className="rounded-full p-1 transition hover:bg-white"
-                onClick={() => setJamView("jam")}
-                aria-label="Back to jam"
-              >
-                <ArrowLeft className="size-5" />
-              </button>
-              <button
-                type="button"
-                className="rounded-full px-3 py-1.5 text-xs transition hover:bg-white"
-                onClick={() => {
-                  setLibraryTab("media");
-                  setJamView("media");
-                }}
-              >
-                Media, files, link
-              </button>
-            </div>
-          ) : null}
-
           {jamView === "jam" ? (
-            <div className="mb-2 flex items-center justify-end">
+            <div className="mb-2 flex items-center justify-end gap-1">
+              <button
+                type="button"
+                className="rounded-full p-1 text-[#8E95A3] transition hover:bg-white"
+                onClick={() => router.push(`/events/${id}/messages`)}
+                aria-label="Open messages page"
+              >
+                <Maximize2 className="size-4" />
+              </button>
               <button
                 type="button"
                 className="rounded-full p-1 text-[#8E95A3] transition hover:bg-white"
@@ -634,8 +781,8 @@ export default function EventDetailsPage() {
                 <button
                   type="button"
                   className="rounded-full p-1 transition hover:bg-white"
-                  onClick={() => setJamView("messages")}
-                  aria-label="Back to messages"
+                  onClick={() => setJamView("jam")}
+                  aria-label="Back to JAM"
                 >
                   <ArrowLeft className="size-5" />
                 </button>
@@ -645,7 +792,9 @@ export default function EventDetailsPage() {
                       key={tab}
                       type="button"
                       className={`rounded-full px-2 py-1 capitalize transition ${
-                        tab === libraryTab ? "bg-white text-[#4D4D4D]" : "text-[#9AA1AE]"
+                        tab === libraryTab
+                          ? "bg-white text-[#4D4D4D]"
+                          : "text-[#9AA1AE]"
                       }`}
                       onClick={() => setLibraryTab(tab)}
                     >
@@ -659,7 +808,10 @@ export default function EventDetailsPage() {
                 mediaMessages.length ? (
                   <div className="grid max-h-[460px] grid-cols-4 gap-1 overflow-auto">
                     {mediaMessages.map((message) => (
-                      <div key={message._id} className="overflow-hidden rounded-sm bg-white">
+                      <div
+                        key={message._id}
+                        className="overflow-hidden rounded-sm bg-white"
+                      >
                         {message.mediaUrl ? (
                           <Image
                             src={message.mediaUrl}
@@ -678,7 +830,10 @@ export default function EventDetailsPage() {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title="No media" description="Attach photos in chat and they will show here." />
+                  <EmptyState
+                    title="No media"
+                    description="Attach photos in chat and they will show here."
+                  />
                 )
               ) : null}
 
@@ -686,17 +841,27 @@ export default function EventDetailsPage() {
                 fileMessages.length ? (
                   <div className="max-h-[460px] space-y-2 overflow-auto">
                     {fileMessages.map((message) => (
-                      <div key={message._id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                      <div
+                        key={message._id}
+                        className="flex items-center justify-between rounded-xl bg-white px-3 py-2"
+                      >
                         <div className="min-w-0">
-                          <p className="truncate text-sm text-[#4D4D4D]">{message.fileName || getMessageLabel(message)}</p>
-                          <p className="text-xs text-[#9AA1AE]">{formatMessageStamp(message.createdAt)}</p>
+                          <p className="truncate text-sm text-[#4D4D4D]">
+                            {message.fileName || getMessageLabel(message)}
+                          </p>
+                          <p className="text-xs text-[#9AA1AE]">
+                            {formatMessageStamp(message.createdAt)}
+                          </p>
                         </div>
                         <Paperclip className="size-4 text-[#9AA1AE]" />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title="No files" description="Uploaded files from chat will appear here." />
+                  <EmptyState
+                    title="No files"
+                    description="Uploaded files from chat will appear here."
+                  />
                 )
               ) : null}
 
@@ -714,8 +879,12 @@ export default function EventDetailsPage() {
                           className="flex items-center justify-between rounded-xl bg-white px-3 py-2"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-[#4D4D4D]">{linkValue || "Link"}</p>
-                            <p className="text-xs text-[#9AA1AE]">{formatMessageStamp(message.createdAt)}</p>
+                            <p className="truncate text-sm text-[#4D4D4D]">
+                              {linkValue || "Link"}
+                            </p>
+                            <p className="text-xs text-[#9AA1AE]">
+                              {formatMessageStamp(message.createdAt)}
+                            </p>
                           </div>
                           <Link2 className="size-4 text-[#9AA1AE]" />
                         </a>
@@ -723,41 +892,95 @@ export default function EventDetailsPage() {
                     })}
                   </div>
                 ) : (
-                  <EmptyState title="No links" description="Links shared in messages will appear here." />
+                  <EmptyState
+                    title="No links"
+                    description="Links shared in messages will appear here."
+                  />
                 )
               ) : null}
             </>
           ) : null}
 
-          {jamView === "jam" || jamView === "messages" ? (
+          {jamView === "jam" ? (
             <>
-              <div className="max-h-[300px] space-y-3 overflow-auto">
+              <div className="max-h-[300px] space-y-3 overflow-auto rounded-[22px] bg-[#E6E8EC] p-2">
                 {messagesQuery.isLoading ? (
                   <SectionLoading rows={3} />
-                ) : (jamView === "jam" ? jamPreviewMessages : messages).length ? (
-                  (jamView === "jam" ? jamPreviewMessages : messages).map((message) => (
-                    <div key={message._id} className="space-y-1">
-                      <div className="flex items-end justify-between gap-2">
-                        <p
-                          className={`text-[11px] ${
-                            getDisplayNameFromMessage(message) === "Me"
-                              ? "text-[#32ADE6]"
-                              : "text-[#4D4D4D]"
+                ) : jamPreviewMessages.length ? (
+                  jamPreviewMessages.map((message) => {
+                    const rawName = getDisplayNameFromMessage(message).trim();
+                    const isMe = viewerId
+                      ? message.user._id === viewerId
+                      : rawName === "Me";
+                    const displayName = isMe ? "Me" : rawName || "User";
+
+                    return (
+                      <div
+                        key={message._id}
+                        className={`flex items-end gap-2 ${
+                          isMe ? "justify-end" : ""
+                        }`}
+                      >
+                        {!isMe ? (
+                          <Avatar className="size-10 border border-[#D4DAE5]">
+                            <AvatarImage src={getMessageAvatarUrl(message)} />
+                            <AvatarFallback>
+                              {displayName.slice(0, 1)}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : null}
+                        <div
+                          className={`min-w-0 max-w-[85%] ${
+                            isMe ? "text-right" : ""
                           }`}
                         >
-                          {getDisplayNameFromMessage(message)}
-                        </p>
-                        <p className="text-[9px] text-[#B3B9C6]">
-                          {formatMessageStamp(message.createdAt)}
-                        </p>
+                          <p
+                            className={`mb-1 text-[14px] leading-none font-medium ${
+                              isMe ? "text-[#31A8E8]" : "text-[#4D4D4D]"
+                            }`}
+                          >
+                            {displayName}
+                          </p>
+                          <div
+                            className={`flex items-end gap-2 ${
+                              isMe ? "justify-end" : ""
+                            }`}
+                          >
+                            {isMe ? (
+                              <p className="pb-0.5 text-[10px] text-[#B3B9C6]">
+                                {formatMessageStamp(message.createdAt)}
+                              </p>
+                            ) : null}
+                            <div
+                              className={`max-w-[260px] rounded-[18px] px-3 py-1.5 text-[12px] text-[#4D4D4D] ${
+                                isMe ? "bg-[#E9F5FF]" : "bg-white"
+                              }`}
+                            >
+                              {getMessageLabel(message)}
+                            </div>
+                            {!isMe ? (
+                              <p className="pb-0.5 text-[10px] text-[#B3B9C6]">
+                                {formatMessageStamp(message.createdAt)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        {isMe ? (
+                          <Avatar className="size-10 border border-[#D4DAE5]">
+                            <AvatarImage src={getMessageAvatarUrl(message)} />
+                            <AvatarFallback>
+                              {displayName.slice(0, 1)}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : null}
                       </div>
-                      <div className="rounded-2xl bg-white px-3 py-1.5 text-[12px] text-[#4D4D4D]">
-                        {getMessageLabel(message)}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <EmptyState title="No messages" description="Start chatting with participants." />
+                  <EmptyState
+                    title="No messages"
+                    description="Start chatting with participants."
+                  />
                 )}
               </div>
 
@@ -778,8 +1001,8 @@ export default function EventDetailsPage() {
             <div className="mt-3 flex items-center justify-center">
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full border border-[#D6DCE8] bg-white px-3 py-0.5 text-[12px] text-[#AAB0BC]"
-                onClick={() => setJamView("messages")}
+                className="flex items-center gap-1 rounded-full px-3 py-0.5 text-[12px] text-[#AAB0BC]"
+                onClick={() => setJamView("jam")}
               >
                 Let&apos;s JAM
                 <ArrowLeft className="size-3 rotate-90" />
@@ -787,15 +1010,6 @@ export default function EventDetailsPage() {
             </div>
           ) : null}
         </Card>
-
-        <div className="mt-2 flex items-center gap-2">
-          {participants.map((participant) => (
-            <Avatar key={participant._id} className="size-8 border border-[#d2d8e5]">
-              <AvatarImage src={participant.avatar?.url} />
-              <AvatarFallback>{getParticipantDisplayName(participant).slice(0, 1)}</AvatarFallback>
-            </Avatar>
-          ))}
-        </div>
       </section>
 
       {jamView !== "jam" ? (
