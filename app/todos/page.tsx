@@ -41,6 +41,17 @@ interface CategoryWithItems extends TodoCategory {
 }
 
 type ScheduledStatusTab = "unfinished" | "finished" | "all";
+type CategoryMetaLookup = Record<string, { name: string; color: string }>;
+type ScheduledTabOption = {
+  value: ScheduledStatusTab;
+  label: string;
+};
+
+const SCHEDULED_TAB_OPTIONS: ScheduledTabOption[] = [
+  { value: "unfinished", label: "Unfinished" },
+  { value: "finished", label: "Finished" },
+  { value: "all", label: "All" },
+];
 
 function toDateInputValue(value?: string) {
   if (!value) {
@@ -70,12 +81,20 @@ function toLocalDateTimeInputValue(value?: string) {
   return local.toISOString().slice(0, 16);
 }
 
-function getTodoCategoryMeta(todo: TodoItem) {
+function getTodoCategoryMeta(todo: TodoItem, categoryMetaLookup?: CategoryMetaLookup) {
   if (todo.categoryId && typeof todo.categoryId !== "string") {
     return {
       id: todo.categoryId._id,
       name: todo.categoryId.name,
       color: todo.categoryId.color,
+    };
+  }
+
+  if (typeof todo.categoryId === "string" && categoryMetaLookup?.[todo.categoryId]) {
+    return {
+      id: todo.categoryId,
+      name: categoryMetaLookup[todo.categoryId].name,
+      color: categoryMetaLookup[todo.categoryId].color,
     };
   }
 
@@ -114,7 +133,8 @@ function getScheduledOffsetLabel(value?: string) {
 
 function CategoryCard({
   category,
-  onToggle,
+  pendingDeleteMap,
+  onTodoClick,
   onOpen,
   onCreateTodoRequest,
   onEditTodoRequest,
@@ -122,7 +142,8 @@ function CategoryCard({
   onDeleteCategoryRequest,
 }: {
   category: CategoryWithItems;
-  onToggle: (payload: { id: string; isCompleted: boolean }) => void;
+  pendingDeleteMap: Record<string, true>;
+  onTodoClick: (todoId: string) => void;
   onOpen: (categoryId: string) => void;
   onCreateTodoRequest: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
@@ -143,7 +164,7 @@ function CategoryCard({
           onOpen(category._id);
         }
       }}
-      className="rounded-[26px] border border-[#D7DCE6] bg-[#F7F9FC] p-4 transition hover:border-[#C7CEDD]"
+      className="rounded-[26px] border border-[#D8DEE8] bg-[#F0F3F8] p-4 transition hover:border-[#C7CEDD]"
     >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-poppins text-[24px] leading-[120%] font-semibold" style={{ color: category.color }}>
@@ -182,47 +203,68 @@ function CategoryCard({
       </div>
 
       <div className="space-y-2">
-        {items.slice(0, 3).map((item) => (
-          <div key={item._id} className="flex items-center gap-2 text-[18px] text-[#3D4351]">
-            <input
-              type="checkbox"
-              checked={item.isCompleted}
-              onClick={(event) => event.stopPropagation()}
-              onChange={() => onToggle({ id: item._id, isCompleted: !item.isCompleted })}
-              className="size-4 rounded-full border border-[#A3ABBC]"
-            />
-            <span className={`flex-1 truncate ${item.isCompleted ? "text-[#A2A9B7] line-through" : ""}`}>
-              {item.text}
-            </span>
-            <div className="flex items-center gap-1 text-[#B5BBC8]">
-              {item.scheduledDate ? (
-                <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                  <CalendarDays className="size-3.5" />
-                  {format(new Date(item.scheduledDate), "dd MMM")}
-                </span>
-              ) : null}
-              {item.scheduledTime ? (
-                <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                  <Clock3 className="size-3.5" />
-                  {item.scheduledTime}
-                </span>
-              ) : null}
-              {item.alarm ? <Bell className="size-3.5" /> : null}
-              {item.repeat ? <Repeat2 className="size-3.5" /> : null}
+        {items.slice(0, 3).map((item) => {
+          const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
+          const isChecked = item.isCompleted || isPendingDelete;
+
+          return (
+            <div key={item._id} className="flex items-center gap-2 text-[18px] text-[#3F4552]">
               <button
                 type="button"
-                aria-label={`Edit ${item.text}`}
-                className="inline-flex items-center justify-center"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onEditTodoRequest(category._id, item._id);
+                  onTodoClick(item._id);
                 }}
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
+                style={{ borderColor: category.color || "#38A8E8" }}
+                aria-label={`Delete ${item.text} after 3 seconds`}
               >
-                <SlidersHorizontal className="size-4" />
+                {isChecked ? (
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ backgroundColor: category.color || "#38A8E8" }}
+                  />
+                ) : null}
               </button>
+              <span className={`flex-1 truncate ${isChecked ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"}`}>
+                {item.text}
+              </span>
+              {isPendingDelete ? (
+                <p className="font-poppins shrink-0 text-[11px] leading-none text-[#FF6F61]">
+                  Deleting...
+                </p>
+              ) : (
+                <div className="flex items-center gap-1 text-[#B5BBC8]">
+                  {item.scheduledDate ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] leading-none">
+                      <CalendarDays className="size-3.5" />
+                      {format(new Date(item.scheduledDate), "dd MMM")}
+                    </span>
+                  ) : null}
+                  {item.scheduledTime ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] leading-none">
+                      <Clock3 className="size-3.5" />
+                      {item.scheduledTime}
+                    </span>
+                  ) : null}
+                  {item.alarm ? <Bell className="size-3.5" /> : null}
+                  {item.repeat ? <Repeat2 className="size-3.5" /> : null}
+                  <button
+                    type="button"
+                    aria-label={`Edit ${item.text}`}
+                    className="inline-flex items-center justify-center"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEditTodoRequest(category._id, item._id);
+                    }}
+                  >
+                    <SlidersHorizontal className="size-4" />
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <button
@@ -275,15 +317,12 @@ export default function TodosPage() {
   const [newCategoryColor, setNewCategoryColor] = React.useState("#F7C700");
   const [scheduledStatusTab, setScheduledStatusTab] = React.useState<ScheduledStatusTab>("unfinished");
   const [scheduledCategoryFilter, setScheduledCategoryFilter] = React.useState("all");
+  const [scheduledAutoDeleteMap, setScheduledAutoDeleteMap] = React.useState<Record<string, true>>({});
+  const scheduledAutoDeleteTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categoriesWithItems,
     queryFn: todoItemApi.getCategoriesWithItems,
-  });
-
-  const scheduledQuery = useQuery({
-    queryKey: queryKeys.scheduledTodos({ scope: "scheduled-panel" }),
-    queryFn: () => todoItemApi.getScheduled({}),
   });
 
   const createTodoMutation = useMutation({
@@ -295,15 +334,6 @@ export default function TodosPage() {
     onError: (error: Error) => toast.error(error.message || "Failed to add todo"),
   });
 
-  const toggleTodoMutation = useMutation({
-    mutationFn: ({ id, isCompleted }: { id: string; isCompleted: boolean }) =>
-      todoItemApi.update(id, { isCompleted }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
-      queryClient.invalidateQueries({ queryKey: ["scheduled-todos"] });
-    },
-    onError: (error: Error) => toast.error(error.message || "Failed to update todo"),
-  });
   const updateTodoMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof todoItemApi.update>[1] }) =>
       todoItemApi.update(id, payload),
@@ -317,13 +347,30 @@ export default function TodosPage() {
   });
   const deleteTodoMutation = useMutation({
     mutationFn: (id: string) => todoItemApi.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, deletedTodoId) => {
+      const timer = scheduledAutoDeleteTimersRef.current[deletedTodoId];
+      if (timer) {
+        clearTimeout(timer);
+        delete scheduledAutoDeleteTimersRef.current[deletedTodoId];
+      }
+      setScheduledAutoDeleteMap((prev) => {
+        if (!prev[deletedTodoId]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[deletedTodoId];
+        return next;
+      });
+
       queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
       queryClient.invalidateQueries({ queryKey: ["scheduled-todos"] });
       toast.success("Todo deleted");
       setDeleteConfirmOpen(false);
       setDeleteTargetTodoId(null);
-      setTodoEditorOpen(false);
+      if (selectedTodoId === deletedTodoId) {
+        setTodoEditorOpen(false);
+        setSelectedTodoId(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message || "Failed to delete todo"),
   });
@@ -398,6 +445,17 @@ export default function TodosPage() {
     () => ((categoriesQuery.data || []) as CategoryWithItems[]),
     [categoriesQuery.data]
   );
+  const categoryMetaLookup = React.useMemo(
+    () =>
+      categories.reduce((acc, category) => {
+        acc[category._id] = {
+          name: category.name,
+          color: category.color,
+        };
+        return acc;
+      }, {} as CategoryMetaLookup),
+    [categories],
+  );
   const selectedCategory = React.useMemo(
     () => categories.find((item) => item._id === selectedCategoryId) || null,
     [categories, selectedCategoryId]
@@ -417,36 +475,45 @@ export default function TodosPage() {
 
   const paged = React.useMemo(() => paginateArray(categories, page, 6), [categories, page]);
 
-  const scheduledItems = React.useMemo(
-    () => (scheduledQuery.data || []).filter((todo) => Boolean(todo.scheduledDate)),
-    [scheduledQuery.data],
-  );
+  const scheduledItems = React.useMemo(() => {
+    const allTodos = categories.flatMap((category) =>
+      (category.items || []).map((todo) => ({
+        ...todo,
+        categoryId: todo.categoryId || category._id,
+      })),
+    );
+
+    return allTodos.sort((a, b) => {
+      const aTime = new Date(a.scheduledDate || a.createdAt).getTime();
+      const bTime = new Date(b.scheduledDate || b.createdAt).getTime();
+
+      const safeATime = Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime;
+      const safeBTime = Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime;
+      return safeATime - safeBTime;
+    });
+  }, [categories]);
 
   const scheduledCategoryOptions = React.useMemo(() => {
-    const seen = new Set<string>();
-
-    return scheduledItems
-      .map((todo) => getTodoCategoryMeta(todo))
-      .filter((meta) => {
-        if (!meta.id || seen.has(meta.id)) {
-          return false;
-        }
-        seen.add(meta.id);
-        return true;
-      });
-  }, [scheduledItems]);
+    return categories.map((category) => ({
+      id: category._id,
+      name: category.name,
+      color: category.color,
+    }));
+  }, [categories]);
 
   const visibleScheduledItems = React.useMemo(() => {
     return scheduledItems.filter((todo) => {
-      if (scheduledStatusTab === "unfinished" && todo.isCompleted) {
+      const isPendingAutoDelete = Boolean(scheduledAutoDeleteMap[todo._id]);
+
+      if (scheduledStatusTab === "unfinished" && todo.isCompleted && !isPendingAutoDelete) {
         return false;
       }
-      if (scheduledStatusTab === "finished" && !todo.isCompleted) {
+      if (scheduledStatusTab === "finished" && !todo.isCompleted && !isPendingAutoDelete) {
         return false;
       }
 
       if (scheduledCategoryFilter !== "all") {
-        const category = getTodoCategoryMeta(todo);
+        const category = getTodoCategoryMeta(todo, categoryMetaLookup);
         if (category.id !== scheduledCategoryFilter) {
           return false;
         }
@@ -454,11 +521,78 @@ export default function TodosPage() {
 
       return true;
     });
-  }, [scheduledItems, scheduledStatusTab, scheduledCategoryFilter]);
+  }, [categoryMetaLookup, scheduledItems, scheduledStatusTab, scheduledCategoryFilter, scheduledAutoDeleteMap]);
+
+  const clearScheduledAutoDelete = React.useCallback((todoId: string) => {
+    const timer = scheduledAutoDeleteTimersRef.current[todoId];
+    if (timer) {
+      clearTimeout(timer);
+      delete scheduledAutoDeleteTimersRef.current[todoId];
+    }
+
+    setScheduledAutoDeleteMap((prev) => {
+      if (!prev[todoId]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[todoId];
+      return next;
+    });
+  }, []);
+
+  const scheduleScheduledAutoDelete = React.useCallback(
+    (todoId: string) => {
+      clearScheduledAutoDelete(todoId);
+
+      setScheduledAutoDeleteMap((prev) => ({ ...prev, [todoId]: true }));
+      scheduledAutoDeleteTimersRef.current[todoId] = setTimeout(() => {
+        delete scheduledAutoDeleteTimersRef.current[todoId];
+        setScheduledAutoDeleteMap((prev) => {
+          if (!prev[todoId]) {
+            return prev;
+          }
+          const next = { ...prev };
+          delete next[todoId];
+          return next;
+        });
+        deleteTodoMutation.mutate(todoId);
+      }, 3000);
+    },
+    [clearScheduledAutoDelete, deleteTodoMutation],
+  );
+
+  const handleTodoClickDelete = React.useCallback((todoId: string) => {
+    scheduleScheduledAutoDelete(todoId);
+  }, [scheduleScheduledAutoDelete]);
 
   React.useEffect(() => {
     setPage(1);
   }, [categories.length]);
+
+  React.useEffect(() => {
+    if (scheduledCategoryFilter === "all") {
+      return;
+    }
+    if (!scheduledCategoryOptions.some((category) => category.id === scheduledCategoryFilter)) {
+      setScheduledCategoryFilter("all");
+    }
+  }, [scheduledCategoryFilter, scheduledCategoryOptions]);
+
+  React.useEffect(() => {
+    const scheduledIds = new Set(scheduledItems.map((todo) => todo._id));
+    Object.keys(scheduledAutoDeleteTimersRef.current).forEach((todoId) => {
+      if (!scheduledIds.has(todoId)) {
+        clearScheduledAutoDelete(todoId);
+      }
+    });
+  }, [clearScheduledAutoDelete, scheduledItems]);
+
+  React.useEffect(() => {
+    return () => {
+      Object.values(scheduledAutoDeleteTimersRef.current).forEach((timer) => clearTimeout(timer));
+      scheduledAutoDeleteTimersRef.current = {};
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!todoEditorOpen) {
@@ -581,8 +715,9 @@ export default function TodosPage() {
     if (!deleteTargetTodoId) {
       return;
     }
+    clearScheduledAutoDelete(deleteTargetTodoId);
     deleteTodoMutation.mutate(deleteTargetTodoId);
-  }, [deleteTargetTodoId, deleteTodoMutation]);
+  }, [clearScheduledAutoDelete, deleteTargetTodoId, deleteTodoMutation]);
   const handleConfirmDeleteCategory = React.useCallback(() => {
     if (!deleteTargetCategoryId) {
       return;
@@ -625,30 +760,33 @@ export default function TodosPage() {
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="rounded-[26px] border border-[#D8DEE8] bg-[#F0F3F8] p-4">
+        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="">
             <h2 className="font-poppins mb-3 flex items-center gap-2 text-[20px] leading-[120%] font-medium text-[#2F3542]">
               <CalendarClock className="size-5" />
               Scheduled
             </h2>
 
-            {scheduledQuery.isLoading ? (
+            {categoriesQuery.isLoading ? (
               <SectionLoading rows={4} />
             ) : scheduledItems.length ? (
               <div className="rounded-[24px] bg-[#ECEFF4] p-3">
-                <div className="mb-3 grid grid-cols-3 rounded-full bg-[#E4E7ED] p-1 text-[14px]">
-                  {(["unfinished", "finished", "all"] as const).map((status) => (
+                <div
+                  className="mb-3 grid grid-cols-3 rounded-full border border-[#D8DEE8] bg-[#F6F6F6] p-1 text-[14px]"
+                  style={{ boxShadow: "0px 4px 4px 0px rgba(0, 0, 0, 0)" }}
+                >
+                  {SCHEDULED_TAB_OPTIONS.map(({ value, label }) => (
                     <button
-                      key={status}
+                      key={value}
                       type="button"
-                      onClick={() => setScheduledStatusTab(status)}
+                      onClick={() => setScheduledStatusTab(value)}
                       className={`rounded-full px-2 py-1 capitalize transition ${
-                        scheduledStatusTab === status
+                        scheduledStatusTab === value
                           ? "bg-white font-medium text-[#3E4451]"
                           : "text-[#ADB3BF]"
                       }`}
                     >
-                      {status}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -678,8 +816,8 @@ export default function TodosPage() {
                       style={{
                         borderColor: category.color,
                         backgroundColor:
-                          scheduledCategoryFilter === category.id ? category.color : "white",
-                        color: scheduledCategoryFilter === category.id ? "#FFFFFF" : category.color,
+                          scheduledCategoryFilter === category.id ? "white" : category.color,
+                        color: scheduledCategoryFilter === category.id ? category.color : "white",
                       }}
                     >
                       {category.name}
@@ -688,60 +826,73 @@ export default function TodosPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {visibleScheduledItems.map((todo) => {
-                    const category = getTodoCategoryMeta(todo);
-                    const offsetLabel = getScheduledOffsetLabel(todo.scheduledDate);
-                    const isOverdue = offsetLabel.startsWith("-");
+                  {visibleScheduledItems.length ? (
+                    visibleScheduledItems.map((todo) => {
+                      const category = getTodoCategoryMeta(todo, categoryMetaLookup);
+                      const offsetLabel = getScheduledOffsetLabel(todo.scheduledDate || todo.createdAt);
+                      const isOverdue = offsetLabel.startsWith("-");
+                      const isAutoDeleting = Boolean(scheduledAutoDeleteMap[todo._id]);
+                      const isChecked = todo.isCompleted || isAutoDeleting;
 
-                    return (
-                      <div key={todo._id} className="flex items-center gap-2">
-                        <p
-                          className={`w-[56px] shrink-0 text-right text-[12px] ${
-                            isOverdue ? "text-[#FF6F61]" : "text-[#A6ADBA]"
-                          }`}
-                        >
-                          {offsetLabel}
-                        </p>
+                      return (
+                        <div key={todo._id} className="flex items-center gap-2">
+                          <p
+                            className={`w-[56px] shrink-0 text-right text-[12px] ${
+                              isOverdue ? "text-[#FF6F61]" : "text-[#A6ADBA]"
+                            }`}
+                          >
+                            {offsetLabel}
+                          </p>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleTodoMutation.mutate({
-                              id: todo._id,
-                              isCompleted: !todo.isCompleted,
-                            })
-                          }
-                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
-                          style={{ borderColor: category.color || "#38A8E8" }}
-                          aria-label={`Toggle ${todo.text}`}
-                        >
-                          {todo.isCompleted ? (
-                            <span
-                              className="size-2.5 rounded-full"
-                              style={{ backgroundColor: category.color || "#38A8E8" }}
-                            />
-                          ) : null}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTodoClickDelete(todo._id)}
+                            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
+                            style={{ borderColor: category.color || "#38A8E8" }}
+                            aria-label={`Delete ${todo.text} after 3 seconds`}
+                          >
+                            {isChecked ? (
+                              <span
+                                className="size-2.5 rounded-full"
+                                style={{ backgroundColor: category.color || "#38A8E8" }}
+                              />
+                            ) : null}
+                          </button>
 
-                        <p
-                          className={`font-poppins min-w-0 flex-1 truncate text-[32px] leading-[120%] ${
-                            todo.isCompleted ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"
-                          }`}
-                        >
-                          {todo.text}
-                        </p>
+                          <p
+                            className={`font-poppins min-w-0 flex-1 truncate text-[24px] leading-[120%] ${
+                              isChecked ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"
+                            }`}
+                          >
+                            {todo.text}
+                          </p>
 
-                        <div className="flex shrink-0 items-center gap-1 text-[#BCC2CE]">
-                          <Bell className={`size-4 ${todo.alarm ? "opacity-100" : "opacity-35"}`} />
-                          <Repeat2 className={`size-4 ${todo.repeat ? "opacity-100" : "opacity-35"}`} />
+                          {isAutoDeleting ? (
+                            <p className="font-poppins shrink-0 text-[11px] leading-none text-[#FF6F61]">
+                              Deleting...
+                            </p>
+                          ) : (
+                            <div className="flex shrink-0 items-center gap-1 text-[#BCC2CE]">
+                              <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[rgba(203,203,203,1)] p-[2px]">
+                                <Bell className={`size-4 ${todo.alarm ? "opacity-100" : "opacity-35"}`} />
+                              </span>
+                              <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[rgba(203,203,203,1)] p-[2px]">
+                                <Repeat2 className={`size-4 ${todo.repeat ? "opacity-100" : "opacity-35"}`} />
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <p className="font-poppins py-2 text-center text-[13px] text-[#98A0AE]">
+                      No todo found for this filter.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
-              <EmptyState title="No scheduled" description="Set date from todo settings." />
+              <EmptyState title="No todo" description="Create todo from a category to see it here." />
             )}
           </aside>
 
@@ -755,6 +906,7 @@ export default function TodosPage() {
                     <CategoryCard
                       key={category._id}
                       category={category}
+                      pendingDeleteMap={scheduledAutoDeleteMap}
                       onOpen={(categoryId) => {
                         setSelectedCategoryId(categoryId);
                         setCategoryDetailOpen(true);
@@ -766,9 +918,7 @@ export default function TodosPage() {
                         setDeleteTargetCategoryId(categoryId);
                         setDeleteCategoryConfirmOpen(true);
                       }}
-                      onToggle={({ id, isCompleted }) =>
-                        toggleTodoMutation.mutate({ id, isCompleted })
-                      }
+                      onTodoClick={handleTodoClickDelete}
                     />
                   ))}
                 </div>
@@ -786,8 +936,8 @@ export default function TodosPage() {
         onOpenChange={setCategoryDetailOpen}
         selectedCategory={selectedCategory}
         selectedCategoryItems={selectedCategoryItems}
-        onToggleTodo={(todoId, nextCompleted) => {
-          toggleTodoMutation.mutate({ id: todoId, isCompleted: nextCompleted });
+        onToggleTodo={(todoId) => {
+          handleTodoClickDelete(todoId);
         }}
         onEditTodo={(todoId) => {
           if (!selectedCategory) {

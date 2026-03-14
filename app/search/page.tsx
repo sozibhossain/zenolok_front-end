@@ -6,18 +6,21 @@ import { ArrowLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/empty-state";
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { eventApi } from "@/lib/api";
+import { eventApi, paginateArray } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-const tabs = ["Messages", "System", "All"] as const;
+type SearchTab = "Messages" | "System" | "All";
+const SEARCH_PAGE_SIZE = 6;
 
 export default function SearchPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Messages");
+  const [activeTab] = useState<SearchTab>("Messages");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const eventsQuery = useQuery({
     queryKey: queryKeys.events({ filter: "all" }),
@@ -48,6 +51,9 @@ export default function SearchPage() {
       );
     });
   }, [activeTab, eventsQuery.data, query]);
+  const totalPages = Math.max(1, Math.ceil(results.length / SEARCH_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const paged = useMemo(() => paginateArray(results, safePage, SEARCH_PAGE_SIZE), [results, safePage]);
 
   return (
     <div className="space-y-4">
@@ -65,7 +71,10 @@ export default function SearchPage() {
               className="h-11 rounded-xl bg-white pl-9"
               placeholder="Search by name or location"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </div>
@@ -74,13 +83,14 @@ export default function SearchPage() {
           <SectionLoading rows={4} />
         ) : results.length ? (
           <div className="space-y-3">
-            {results.map((event) => (
+            {paged.items.map((event) => (
               <Card key={event._id} className="rounded-2xl bg-[#E7EBF2] p-4 shadow-none">
                 <p className="text-2xl font-semibold text-[#3A3F49]">{event.title}</p>
                 <p className="text-xl text-[#5F6677]">{event.location || "No location"}</p>
                 <p className="mt-1 text-sm text-[#8E95A4]">{new Date(event.startTime).toLocaleString()}</p>
               </Card>
             ))}
+            <PaginationControls page={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
           </div>
         ) : (
           <EmptyState title="No search results" description="Try another keyword or switch tab." />
