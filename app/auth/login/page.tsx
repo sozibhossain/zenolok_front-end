@@ -90,7 +90,7 @@ export default function LoginPage() {
             <div className="w-full max-w-[468px]">
               <div className="mb-8 text-center">
                 <h2 className="fs-pop-60-bold text-[#090b12]">Login</h2>
-                <p className="font-poppins mt-7 text-[20px] font-normal text-[#2f323a]">or use your Username for login</p>
+                <p className="font-poppins mt-7 text-[20px] font-normal text-[#2f323a]">Use your username for login</p>
               </div>
 
               <form className="space-y-[18px]" onSubmit={form.handleSubmit(onSubmit)}>

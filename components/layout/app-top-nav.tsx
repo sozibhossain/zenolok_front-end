@@ -158,7 +158,7 @@ export function AppTopNav() {
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-full"
+            className="rounded-full bg-[#D5DAE5] cursor-pointer"
             onClick={() => router.push("/search")}
           >
             <Search className="size-5" />
@@ -176,7 +176,7 @@ export function AppTopNav() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative rounded-full"
+                className="relative rounded-full bg-[#D5DAE5] cursor-pointer"
                 aria-label="Open notifications"
               >
                 <Bell className="size-5" />
@@ -248,7 +248,7 @@ export function AppTopNav() {
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-full hidden sm:inline-flex"
+            className="rounded-full hidden sm:inline-flex bg-[#D5DAE5] cursor-pointer"
             onClick={() => router.push("/settings")}
             aria-label="Open settings"
           >
