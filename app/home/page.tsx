@@ -964,6 +964,7 @@ export default function HomePage() {
                         ? { backgroundColor: brick.color }
                         : { color: brick.color, borderColor: brick.color }
                     }
+                    className="rounded-full px-4 py-1 !text-[14px]"
                   >
                     <BrickIcon name={brick.icon} className="size-4" />{" "}
                     {brick.name}

@@ -284,7 +284,7 @@ export function AppTopNav() {
             <Link key={item.href} href={item.href}>
               <Badge
                 variant={active ? "blue" : "neutral"}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 !text-[14px] font-medium"
               >
                 <BrickIcon name={item.iconName} className="size-3.5" />
                 {item.label}

@@ -28,7 +28,7 @@ export function BrickFilterBar({
       >
         <Badge
           variant="neutral"
-          className="rounded-full px-4 py-2"
+          className="rounded-full px-4 py-1 !text-[16px]"
           style={{
             backgroundColor: "white",
             borderColor: selectedBrick === "all" ? "#7D8597" : "#C2C9D6",
@@ -50,7 +50,7 @@ export function BrickFilterBar({
           >
             <Badge
               variant="neutral"
-              className="rounded-full px-4 py-2"
+              className="rounded-full px-4 py-1 !text-[16px]"
               style={
                 active
                   ? {

@@ -243,7 +243,7 @@ export default function EventsPage() {
               >
                 <Badge
                   variant={active ? "blue" : "neutral"}
-                  className="rounded-full px-4 py-2"
+                  className="rounded-full px-4 py-2 !text-[16px]"
                   style={
                     active
                       ? { backgroundColor: brick.color, color: "white" }
@@ -467,6 +467,7 @@ export default function EventsPage() {
                         ? { backgroundColor: brick.color }
                         : { color: brick.color, borderColor: brick.color }
                     }
+                    className="rounded-full px-4 py-1 !text-[14px]"
                   >
                     <BrickIcon name={brick.icon} className="size-4" /> {brick.name}
                   </Badge>
