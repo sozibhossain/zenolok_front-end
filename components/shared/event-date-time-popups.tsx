@@ -193,7 +193,7 @@ export function EventDateRangePopup({
     setDraftStart(normalizedStart);
     setDraftEnd(normalizedEnd);
     setCursorMonth(startOfMonth(normalizedStart));
-    setView("month");
+    setView("day");
     setYearSearch("");
   }, [open, startDate, endDate]);
 

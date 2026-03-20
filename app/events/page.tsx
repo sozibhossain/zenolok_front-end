@@ -7,7 +7,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import {
   CalendarDays,
   Clock3,
-  ListFilter,
+  LayoutGrid,
   MapPin,
   MessageCircle,
   Plus,
@@ -47,7 +47,7 @@ const eventFilters = [
 export default function EventsPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<(typeof eventFilters)[number]["value"]>("upcoming");
-  const [selectedBrick, setSelectedBrick] = useState<string>("all");
+  const [selectedBrickIds, setSelectedBrickIds] = useState<string[]>([]);
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
 
@@ -76,13 +76,8 @@ export default function EventsPage() {
   const eventsQuery = useQuery({
     queryKey: queryKeys.events({
       filter,
-      brickId: selectedBrick === "all" ? undefined : selectedBrick,
     }),
-    queryFn: () =>
-      eventApi.getAll({
-        filter,
-        brickId: selectedBrick === "all" ? undefined : selectedBrick,
-      }),
+    queryFn: () => eventApi.getAll({ filter }),
   });
 
   const createEventMutation = useMutation({
@@ -158,7 +153,7 @@ export default function EventsPage() {
       setBrickName("");
       setBrickColor("#36A9E1");
       setBrickIcon("home");
-      setSelectedBrick(createdBrick._id);
+      setSelectedBrickIds([createdBrick._id]);
       queryClient.invalidateQueries({ queryKey: queryKeys.bricks });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to create brick"),
@@ -167,22 +162,47 @@ export default function EventsPage() {
   const bricks = useMemo(() => bricksQuery.data ?? [], [bricksQuery.data]);
 
   const filteredEvents = useMemo(() => {
-    const all = eventsQuery.data || [];
+    const now = eventsQuery.dataUpdatedAt || 0;
+    const todayStart = startOfDay(new Date(now)).getTime();
+    const events = (eventsQuery.data || [])
+      .filter((event) => {
+        const startTime = new Date(event.startTime).getTime();
+        if (Number.isNaN(startTime)) {
+          return false;
+        }
+
+        if (filter === "upcoming") {
+          return startOfDay(new Date(startTime)).getTime() >= todayStart;
+        }
+
+        if (filter === "past") {
+          return startOfDay(new Date(startTime)).getTime() < todayStart;
+        }
+
+        return true;
+      })
+      .filter((event) => {
+        if (!selectedBrickIds.length) {
+          return true;
+        }
+        return Boolean(event.brick?._id && selectedBrickIds.includes(event.brick._id));
+      });
+
     if (!searchText.trim()) {
-      return all;
+      return events;
     }
 
     const q = searchText.toLowerCase();
 
-    return all.filter(
+    return events.filter(
       (event) =>
         event.title.toLowerCase().includes(q) ||
         event.location?.toLowerCase().includes(q) ||
         event.brick?.name?.toLowerCase().includes(q)
     );
-  }, [eventsQuery.data, searchText]);
+  }, [eventsQuery.data, eventsQuery.dataUpdatedAt, filter, searchText, selectedBrickIds]);
 
-  const paged = useMemo(() => paginateArray(filteredEvents, page, 6), [filteredEvents, page]);
+  const paged = useMemo(() => paginateArray(filteredEvents, page, 10), [filteredEvents, page]);
   const jamCountQueries = useQueries({
     queries: paged.items.map((event) => ({
       queryKey: queryKeys.jamMessages(event._id),
@@ -204,7 +224,7 @@ export default function EventsPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [filter, searchText, selectedBrick]);
+  }, [filter, searchText, selectedBrickIds]);
 
   React.useEffect(() => {
     if (!createEventOpen) {
@@ -228,26 +248,58 @@ export default function EventsPage() {
     <div className="space-y-4">
       <section className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
-          <Badge variant="neutral" className="shrink-0 rounded-full px-4 py-2">
-            <ListFilter className="size-4" /> All
-          </Badge>
+          <button type="button" className="shrink-0 rounded-full" onClick={() => setSelectedBrickIds([])}>
+            <Badge
+              variant="neutral"
+              className="shrink-0 rounded-full px-4 py-2"
+              style={
+                selectedBrickIds.length === 0
+                  ? {
+                      backgroundColor: "#CBD7E9",
+                      borderColor: "#CBD7E9",
+                      color: "white",
+                    }
+                  : {
+                      backgroundColor: "white",
+                      borderColor: "#C2C9D6",
+                      color: "#4C5361",
+                    }
+              }
+            >
+              <LayoutGrid className="size-4" /> All
+            </Badge>
+          </button>
           {bricks.map((brick) => {
-            const active = selectedBrick === brick._id;
+            const active = selectedBrickIds.includes(brick._id);
 
             return (
               <button
                 type="button"
                 key={brick._id}
                 className="shrink-0 rounded-full"
-                onClick={() => setSelectedBrick(active ? "all" : brick._id)}
+                onClick={() =>
+                  setSelectedBrickIds((previous) =>
+                    previous.includes(brick._id)
+                      ? previous.filter((id) => id !== brick._id)
+                      : [...previous, brick._id],
+                  )
+                }
               >
                 <Badge
-                  variant={active ? "blue" : "neutral"}
+                  variant="neutral"
                   className="rounded-full px-4 py-2 !text-[16px]"
                   style={
                     active
-                      ? { backgroundColor: brick.color, color: "white" }
-                      : { color: brick.color, borderColor: brick.color }
+                      ? {
+                          color: brick.color,
+                          borderColor: brick.color,
+                          backgroundColor: "white",
+                        }
+                      : {
+                          backgroundColor: brick.color,
+                          color: "white",
+                          borderColor: brick.color,
+                        }
                   }
                 >
                   <BrickIcon name={brick.icon} className="size-4" /> {brick.name}
@@ -461,11 +513,19 @@ export default function EventsPage() {
               {bricks.map((brick) => (
                 <button key={brick._id} type="button" className="shrink-0" onClick={() => setNewEventBrick(brick._id)}>
                   <Badge
-                    variant={newEventBrick === brick._id ? "blue" : "neutral"}
+                    variant="neutral"
                     style={
                       newEventBrick === brick._id
-                        ? { backgroundColor: brick.color }
-                        : { color: brick.color, borderColor: brick.color }
+                        ? {
+                            color: brick.color,
+                            borderColor: brick.color,
+                            backgroundColor: "white",
+                          }
+                        : {
+                            backgroundColor: brick.color,
+                            color: "white",
+                            borderColor: brick.color,
+                          }
                     }
                     className="rounded-full px-4 py-1 !text-[14px]"
                   >

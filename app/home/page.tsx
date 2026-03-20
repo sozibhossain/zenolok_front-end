@@ -64,6 +64,7 @@ type CalendarEvent = {
   spansMultipleDays: boolean;
   color: string;
   location: string;
+  brickId?: string;
   brickName?: string;
   icon?: string;
   isAllDay: boolean;
@@ -219,7 +220,7 @@ function getSegmentTextColor(hex: string) {
 
 export default function HomePage() {
   const queryClient = useQueryClient();
-  const [selectedBrick, setSelectedBrick] = React.useState("all");
+  const [selectedBrickIds, setSelectedBrickIds] = React.useState<string[]>([]);
   const { monthCursor, selectedDate, setSelectedDate, preferences } =
     useAppState();
   const [createBrickOpen, setCreateBrickOpen] = React.useState(false);
@@ -236,7 +237,7 @@ export default function HomePage() {
   const [eventEndTime, setEventEndTime] = React.useState("");
   const [eventDatePopupOpen, setEventDatePopupOpen] = React.useState(false);
   const [eventTimePopupOpen, setEventTimePopupOpen] = React.useState(false);
-  const [newEventBrick, setNewEventBrick] = React.useState("");
+  const [newEventBrickIds, setNewEventBrickIds] = React.useState<string[]>([]);
   const [selectedDateRange, setSelectedDateRange] = React.useState(() => {
     const normalized = startOfDay(selectedDate);
     return { start: normalized, end: normalized };
@@ -311,6 +312,7 @@ export default function HomePage() {
         spansMultipleDays,
         color,
         location: event.location || "No location",
+        brickId: event.brick?._id,
         brickName: event.brick?.name,
         icon: event.brick?.icon,
         isAllDay: event.isAllDay,
@@ -324,19 +326,14 @@ export default function HomePage() {
   }, [eventsQuery.data]);
 
   const filteredEvents = React.useMemo(() => {
-    if (selectedBrick === "all") {
-      return normalizedEvents;
-    }
-
-    const selected = bricks.find((brick) => brick._id === selectedBrick);
-    if (!selected) {
+    if (!selectedBrickIds.length) {
       return normalizedEvents;
     }
 
     return normalizedEvents.filter(
-      (event) => event.brickName?.toLowerCase() === selected.name.toLowerCase(),
+      (event) => Boolean(event.brickId && selectedBrickIds.includes(event.brickId)),
     );
-  }, [selectedBrick, normalizedEvents, bricks]);
+  }, [selectedBrickIds, normalizedEvents]);
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   const weeks = splitIntoWeeks(days);
@@ -410,7 +407,7 @@ export default function HomePage() {
       toast.success("Brick created");
       queryClient.invalidateQueries({ queryKey: queryKeys.bricks });
       setCreateBrickOpen(false);
-      setSelectedBrick(createdBrick._id);
+      setSelectedBrickIds([createdBrick._id]);
       setBrickName("");
       setBrickColor("#36A9E1");
       setBrickIcon("home");
@@ -449,7 +446,10 @@ export default function HomePage() {
 
       return eventApi.create({
         title: eventTitle.trim(),
-        brick: newEventBrick || undefined,
+        brick:
+          newEventBrickIds.length > 0
+            ? newEventBrickIds[newEventBrickIds.length - 1]
+            : undefined,
         location: eventLocation.trim() || undefined,
         startTime: normalizedStart.toISOString(),
         endTime: normalizedEnd.toISOString(),
@@ -469,6 +469,7 @@ export default function HomePage() {
       setEventEndTime("");
       setEventDatePopupOpen(false);
       setEventTimePopupOpen(false);
+      setNewEventBrickIds([]);
     },
     onError: (error: Error) =>
       toast.error(error.message || "Failed to create event"),
@@ -488,8 +489,8 @@ export default function HomePage() {
     setEventEndDate(defaultEndDate);
     setEventStartTime("");
     setEventEndTime("");
-    setNewEventBrick(selectedBrick === "all" ? "" : selectedBrick);
-  }, [createEventOpen, selectedBrick, selectedDateRange]);
+    setNewEventBrickIds(selectedBrickIds);
+  }, [createEventOpen, selectedBrickIds, selectedDateRange]);
 
   React.useEffect(() => {
     if (!isRangeDragging) {
@@ -536,8 +537,15 @@ export default function HomePage() {
     <div className="space-y-4">
       <BrickFilterBar
         bricks={bricks}
-        selectedBrick={selectedBrick}
-        onSelectBrick={setSelectedBrick}
+        selectedBrickIds={selectedBrickIds}
+        onToggleBrick={(brickId) =>
+          setSelectedBrickIds((previous) =>
+            previous.includes(brickId)
+              ? previous.filter((id) => id !== brickId)
+              : [...previous, brickId],
+          )
+        }
+        onSelectAll={() => setSelectedBrickIds([])}
         onCreateBrick={() => setCreateBrickOpen(true)}
       />
 
@@ -955,14 +963,28 @@ export default function HomePage() {
                   key={brick._id}
                   type="button"
                   className="shrink-0"
-                  onClick={() => setNewEventBrick(brick._id)}
+                  onClick={() =>
+                    setNewEventBrickIds((previous) =>
+                      previous.includes(brick._id)
+                        ? previous.filter((id) => id !== brick._id)
+                        : [...previous, brick._id],
+                    )
+                  }
                 >
                   <Badge
-                    variant={newEventBrick === brick._id ? "blue" : "neutral"}
+                    variant="neutral"
                     style={
-                      newEventBrick === brick._id
-                        ? { backgroundColor: brick.color }
-                        : { color: brick.color, borderColor: brick.color }
+                      newEventBrickIds.includes(brick._id)
+                        ? {
+                            color: brick.color,
+                            borderColor: brick.color,
+                            backgroundColor: "white",
+                          }
+                        : {
+                            backgroundColor: brick.color,
+                            color: "white",
+                            borderColor: brick.color,
+                          }
                     }
                     className="rounded-full px-4 py-1 !text-[14px]"
                   >
