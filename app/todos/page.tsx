@@ -138,6 +138,7 @@ function CategoryCard({
   onOpen,
   onCreateTodoRequest,
   onEditTodoRequest,
+  onDeleteTodoRequest,
   onEditCategoryRequest,
   onDeleteCategoryRequest,
 }: {
@@ -147,6 +148,7 @@ function CategoryCard({
   onOpen: (categoryId: string) => void;
   onCreateTodoRequest: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
+  onDeleteTodoRequest: (todoId: string) => void;
   onEditCategoryRequest: (category: CategoryWithItems) => void;
   onDeleteCategoryRequest: (categoryId: string) => void;
 }) {
@@ -217,7 +219,7 @@ function CategoryCard({
                 }}
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
                 style={{ borderColor: category.color || "#38A8E8" }}
-                aria-label={`Delete ${item.text} after 3 seconds`}
+                aria-label={isPendingDelete ? `Cancel delete for ${item.text}` : `Delete ${item.text} after 3 seconds`}
               >
                 {isChecked ? (
                   <span
@@ -229,10 +231,18 @@ function CategoryCard({
               <span className={`flex-1 truncate ${isChecked ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"}`}>
                 {item.text}
               </span>
-              {isPendingDelete ? (
-                <p className="font-poppins shrink-0 text-[11px] leading-none text-[#FF6F61]">
-                  Deleting...
-                </p>
+              {isChecked ? (
+                <button
+                  type="button"
+                  aria-label={`Delete ${item.text}`}
+                  className="inline-flex items-center justify-center text-[#B5BBC8]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteTodoRequest(item._id);
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                </button>
               ) : (
                 <div className="flex items-center gap-1 text-[#B5BBC8]">
                   {item.scheduledDate ? (
@@ -318,6 +328,7 @@ export default function TodosPage() {
   const [scheduledStatusTab, setScheduledStatusTab] = React.useState<ScheduledStatusTab>("unfinished");
   const [scheduledCategoryFilter, setScheduledCategoryFilter] = React.useState("all");
   const [scheduledAutoDeleteMap, setScheduledAutoDeleteMap] = React.useState<Record<string, true>>({});
+  const [scheduledAutoDeleteHiddenMap, setScheduledAutoDeleteHiddenMap] = React.useState<Record<string, true>>({});
   const scheduledAutoDeleteTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const categoriesQuery = useQuery({
@@ -361,6 +372,14 @@ export default function TodosPage() {
         delete next[deletedTodoId];
         return next;
       });
+      setScheduledAutoDeleteHiddenMap((prev) => {
+        if (!prev[deletedTodoId]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[deletedTodoId];
+        return next;
+      });
 
       queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
       queryClient.invalidateQueries({ queryKey: ["scheduled-todos"] });
@@ -372,7 +391,10 @@ export default function TodosPage() {
         setSelectedTodoId(null);
       }
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete todo"),
+    onError: (error: Error, todoId) => {
+      clearScheduledAutoDelete(todoId);
+      toast.error(error.message || "Failed to delete todo");
+    },
   });
 
   const createCategoryMutation = useMutation({
@@ -441,10 +463,16 @@ export default function TodosPage() {
     onError: (error: Error) => toast.error(error.message || "Failed to delete category"),
   });
 
-  const categories = React.useMemo(
-    () => ((categoriesQuery.data || []) as CategoryWithItems[]),
-    [categoriesQuery.data]
-  );
+  const categories = React.useMemo(() => {
+    const source = (categoriesQuery.data || []) as CategoryWithItems[];
+    if (!Object.keys(scheduledAutoDeleteHiddenMap).length) {
+      return source;
+    }
+    return source.map((category) => ({
+      ...category,
+      items: (category.items || []).filter((item) => !scheduledAutoDeleteHiddenMap[item._id]),
+    }));
+  }, [categoriesQuery.data, scheduledAutoDeleteHiddenMap]);
   const categoryMetaLookup = React.useMemo(
     () =>
       categories.reduce((acc, category) => {
@@ -538,6 +566,14 @@ export default function TodosPage() {
       delete next[todoId];
       return next;
     });
+    setScheduledAutoDeleteHiddenMap((prev) => {
+      if (!prev[todoId]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[todoId];
+      return next;
+    });
   }, []);
 
   const scheduleScheduledAutoDelete = React.useCallback(
@@ -555,6 +591,7 @@ export default function TodosPage() {
           delete next[todoId];
           return next;
         });
+        setScheduledAutoDeleteHiddenMap((prev) => ({ ...prev, [todoId]: true }));
         deleteTodoMutation.mutate(todoId);
       }, 3000);
     },
@@ -562,8 +599,12 @@ export default function TodosPage() {
   );
 
   const handleTodoClickDelete = React.useCallback((todoId: string) => {
+    if (scheduledAutoDeleteTimersRef.current[todoId]) {
+      clearScheduledAutoDelete(todoId);
+      return;
+    }
     scheduleScheduledAutoDelete(todoId);
-  }, [scheduleScheduledAutoDelete]);
+  }, [clearScheduledAutoDelete, scheduleScheduledAutoDelete]);
 
   React.useEffect(() => {
     setPage(1);
@@ -849,7 +890,9 @@ export default function TodosPage() {
                             onClick={() => handleTodoClickDelete(todo._id)}
                             className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-white"
                             style={{ borderColor: category.color || "#38A8E8" }}
-                            aria-label={`Delete ${todo.text} after 3 seconds`}
+                            aria-label={
+                              isAutoDeleting ? `Cancel delete for ${todo.text}` : `Delete ${todo.text} after 3 seconds`
+                            }
                           >
                             {isChecked ? (
                               <span
@@ -867,10 +910,18 @@ export default function TodosPage() {
                             {todo.text}
                           </p>
 
-                          {isAutoDeleting ? (
-                            <p className="font-poppins shrink-0 text-[11px] leading-none text-[#FF6F61]">
-                              Deleting...
-                            </p>
+                          {isChecked ? (
+                            <button
+                              type="button"
+                              className="inline-flex shrink-0 items-center justify-center text-[#BCC2CE]"
+                              aria-label={`Delete ${todo.text}`}
+                              onClick={() => {
+                                setDeleteTargetTodoId(todo._id);
+                                setDeleteConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
                           ) : (
                             <div className="flex shrink-0 items-center gap-1 text-[#BCC2CE]">
                               <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[rgba(203,203,203,1)] p-[2px]">
@@ -913,6 +964,10 @@ export default function TodosPage() {
                       }}
                       onCreateTodoRequest={openCreateTodoEditor}
                       onEditTodoRequest={openEditTodoEditor}
+                      onDeleteTodoRequest={(todoId) => {
+                        setDeleteTargetTodoId(todoId);
+                        setDeleteConfirmOpen(true);
+                      }}
                       onEditCategoryRequest={openEditCategoryDialog}
                       onDeleteCategoryRequest={(categoryId) => {
                         setDeleteTargetCategoryId(categoryId);
@@ -936,6 +991,7 @@ export default function TodosPage() {
         onOpenChange={setCategoryDetailOpen}
         selectedCategory={selectedCategory}
         selectedCategoryItems={selectedCategoryItems}
+        pendingDeleteMap={scheduledAutoDeleteMap}
         onToggleTodo={(todoId) => {
           handleTodoClickDelete(todoId);
         }}

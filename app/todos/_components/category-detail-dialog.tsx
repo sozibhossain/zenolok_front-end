@@ -20,7 +20,8 @@ type CategoryDetailDialogProps = {
   onOpenChange: (open: boolean) => void;
   selectedCategory: SelectedCategory;
   selectedCategoryItems: TodoItem[];
-  onToggleTodo: (todoId: string, nextCompleted: boolean) => void;
+  pendingDeleteMap: Record<string, true>;
+  onToggleTodo: (todoId: string) => void;
   onEditTodo: (todoId: string) => void;
   onDeleteTodo: (todoId: string) => void;
 };
@@ -30,6 +31,7 @@ export function CategoryDetailDialog({
   onOpenChange,
   selectedCategory,
   selectedCategoryItems,
+  pendingDeleteMap,
   onToggleTodo,
   onEditTodo,
   onDeleteTodo,
@@ -47,55 +49,77 @@ export function CategoryDetailDialog({
 
           <div className="rounded-[30px] border border-[#DDE2EA] bg-[#F3F5F9] p-3 sm:p-4">
             <div className="space-y-2">
-              {selectedCategoryItems.map((item) => (
-                <div key={item._id} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className={`size-5 rounded-full border ${item.isCompleted ? "border-[#7DC97E] bg-[#7DC97E]" : "border-[#C5CBD6]"}`}
-                    onClick={() => onToggleTodo(item._id, !item.isCompleted)}
-                    aria-label={`Toggle ${item.text}`}
-                  />
+              {selectedCategoryItems.map((item) => {
+                const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
+                const isChecked = item.isCompleted || isPendingDelete;
+
+                return (
+                  <div key={item._id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className={`inline-flex size-5 items-center justify-center rounded-full border ${
+                        isChecked ? "border-[#7DC97E] bg-white" : "border-[#C5CBD6] bg-white"
+                      }`}
+                      onClick={() => onToggleTodo(item._id)}
+                      aria-label={
+                        isPendingDelete ? `Cancel delete for ${item.text}` : `Delete ${item.text} after 3 seconds`
+                      }
+                    >
+                      {isChecked ? <span className="size-2.5 rounded-full bg-[#7DC97E]" /> : null}
+                    </button>
                   <span
                     className={`flex-1 truncate text-[30px] leading-[120%] sm:text-[32px] ${
-                      item.isCompleted ? "text-[#A5ACB9] line-through" : "text-[#4B505A]"
+                      isChecked ? "text-[#A5ACB9] line-through" : "text-[#4B505A]"
                     }`}
                   >
                     {item.text}
                   </span>
-                  <div className="flex items-center gap-1 text-[#B5BBC8]">
-                    {item.scheduledDate ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                        <CalendarDays className="size-4" />
-                        {format(new Date(item.scheduledDate), "dd MMM")}
-                      </span>
-                    ) : null}
-                    {item.scheduledTime ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                        <Clock3 className="size-4" />
-                        {item.scheduledTime}
-                      </span>
-                    ) : null}
-                    {item.alarm ? <Bell className="size-4" /> : null}
-                    {item.repeat ? <Repeat2 className="size-4" /> : null}
+                  {isChecked ? (
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center"
-                      aria-label={`Edit ${item.text}`}
-                      onClick={() => onEditTodo(item._id)}
-                    >
-                      <SlidersHorizontal className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center"
+                      className="inline-flex items-center justify-center text-[#B5BBC8]"
                       aria-label={`Delete ${item.text}`}
                       onClick={() => onDeleteTodo(item._id)}
                     >
                       <Trash2 className="size-4" />
                     </button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[#B5BBC8]">
+                      {item.scheduledDate ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] leading-none">
+                          <CalendarDays className="size-4" />
+                          {format(new Date(item.scheduledDate), "dd MMM")}
+                        </span>
+                      ) : null}
+                      {item.scheduledTime ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] leading-none">
+                          <Clock3 className="size-4" />
+                          {item.scheduledTime}
+                        </span>
+                      ) : null}
+                      {item.alarm ? <Bell className="size-4" /> : null}
+                      {item.repeat ? <Repeat2 className="size-4" /> : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center"
+                        aria-label={`Edit ${item.text}`}
+                        onClick={() => onEditTodo(item._id)}
+                      >
+                        <SlidersHorizontal className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center"
+                        aria-label={`Delete ${item.text}`}
+                        onClick={() => onDeleteTodo(item._id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

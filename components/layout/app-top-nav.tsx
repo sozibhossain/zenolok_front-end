@@ -26,6 +26,7 @@ import { notificationApi } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const navItems = [
   {
@@ -57,6 +58,9 @@ export function AppTopNav() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [activeNotificationTab, setActiveNotificationTab] = useState<
+    "messages" | "system" | "all"
+  >("all");
   const { monthCursor, goToToday, goToPreviousMonth, goToNextMonth } =
     useAppState();
   const isHomePage =
@@ -73,14 +77,25 @@ export function AppTopNav() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
     },
   });
-  const clearAllMutation = useMutation({
-    mutationFn: notificationApi.clearAll,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
-    },
-  });
   const notifications = notificationsQuery.data ?? [];
   const unreadCount = notifications.filter((item) => !item.read).length;
+  const messageNotifications = notifications.filter((item) =>
+    /(message|chat)/i.test(item.type ?? ""),
+  );
+  const systemNotifications = notifications.filter(
+    (item) => !/(message|chat)/i.test(item.type ?? ""),
+  );
+  const displayedNotifications =
+    activeNotificationTab === "messages"
+      ? messageNotifications
+      : activeNotificationTab === "system"
+      ? systemNotifications
+      : notifications;
+  const unreadByTab = {
+    messages: messageNotifications.filter((item) => !item.read).length,
+    system: systemNotifications.filter((item) => !item.read).length,
+    all: unreadCount,
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#E2E6EE] bg-[#F2F5FA]/90 backdrop-blur">
@@ -187,25 +202,56 @@ export function AppTopNav() {
                 ) : null}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[340px] p-0">
-              <div className="flex items-center justify-between border-b border-[#E3E8F2] px-3 py-2">
-                <p className="text-[14px] font-medium text-[#3A4150]">Notifications</p>
-                <button
-                  type="button"
-                  className="text-[12px] text-[#667084] disabled:opacity-50"
-                  disabled={!notifications.length || clearAllMutation.isPending}
-                  onClick={() => clearAllMutation.mutate()}
-                >
-                  {clearAllMutation.isPending ? "Clearing..." : "Clear all"}
-                </button>
+            <PopoverContent
+              align="end"
+              className="w-[310px] border-none bg-[#F0F0F0] p-3 shadow-[0_10px_24px_rgba(20,24,35,0.12)]"
+            >
+              <div className="mb-2 flex items-center justify-center gap-6">
+                {[
+                  { key: "messages" as const, label: "Messages" },
+                  { key: "system" as const, label: "System" },
+                  { key: "all" as const, label: "All" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveNotificationTab(tab.key)}
+                    className={cn(
+                      "relative text-[13px] leading-none transition",
+                      activeNotificationTab === tab.key
+                        ? "text-[#2A2E36]"
+                        : "text-[#9B9EA6]",
+                    )}
+                  >
+                    {tab.label}
+                    {unreadByTab[tab.key] ? (
+                      <span className="absolute -top-2 -right-3 inline-flex min-w-[14px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[9px] font-medium leading-none text-white">
+                        {unreadByTab[tab.key] > 99 ? "99+" : unreadByTab[tab.key]}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
               </div>
-              <div className="max-h-[340px] space-y-2 overflow-y-auto p-3">
+
+              <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
                 {notificationsQuery.isLoading ? (
-                  <p className="py-3 text-center text-[13px] text-[#7D8597]">Loading notifications...</p>
+                  <>
+                    {[40, 40, 66].map((height, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <span className="mt-2 size-4 rounded-full border border-[#D3D3D3] bg-[#E2E2E2]" />
+                        <Skeleton
+                          className="flex-1 rounded-xl bg-[#DEDEDE]"
+                          style={{ height }}
+                        />
+                      </div>
+                    ))}
+                  </>
                 ) : notificationsQuery.isError ? (
-                  <p className="py-3 text-center text-[13px] text-[#B14E4E]">Failed to load notifications</p>
-                ) : notifications.length ? (
-                  notifications.map((notification) => {
+                  <p className="py-3 text-center text-[13px] text-[#B14E4E]">
+                    Failed to load notifications
+                  </p>
+                ) : displayedNotifications.length ? (
+                  displayedNotifications.map((notification) => {
                     const createdAt = new Date(notification.createdAt);
                     const timeLabel = Number.isNaN(createdAt.getTime())
                       ? ""
@@ -215,32 +261,43 @@ export function AppTopNav() {
                       <button
                         key={notification._id}
                         type="button"
-                        className={cn(
-                          "w-full rounded-xl border px-3 py-2 text-left transition",
-                          notification.read
-                            ? "border-[#E5E9F1] bg-[#F8FAFD]"
-                            : "border-[#D2DCEE] bg-white",
-                        )}
+                        className="group flex w-full items-start gap-2 rounded-xl p-1 text-left"
                         onClick={() => {
                           if (!notification.read) {
                             markAsReadMutation.mutate(notification._id);
                           }
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-[13px] leading-[1.3] text-[#3E4655]">{notification.title}</p>
-                          {!notification.read ? (
-                            <span className="mt-1 size-2 rounded-full bg-[#2DAA46]" />
+                        <span
+                          className={cn(
+                            "mt-2 size-4 rounded-full border",
+                            notification.read
+                              ? "border-[#D6D6D6] bg-[#ECECEC]"
+                              : "border-[#C5C5C5] bg-white",
+                          )}
+                        />
+                        <div
+                          className={cn(
+                            "flex-1 rounded-xl border px-3 py-2 transition",
+                            notification.read
+                              ? "border-[#E2E2E2] bg-[#ECECEC]"
+                              : "border-[#D8D8D8] bg-[#E8E8E8]",
+                          )}
+                        >
+                          <p className="text-[12px] leading-[1.35] text-[#4A4F59]">
+                            {notification.title}
+                          </p>
+                          {timeLabel ? (
+                            <p className="mt-1 text-[10px] text-[#8A8F9C]">{timeLabel}</p>
                           ) : null}
                         </div>
-                        {timeLabel ? (
-                          <p className="mt-1 text-[11px] text-[#8A92A3]">{timeLabel}</p>
-                        ) : null}
                       </button>
                     );
                   })
                 ) : (
-                  <p className="py-6 text-center text-[13px] text-[#7D8597]">No notifications yet</p>
+                  <p className="py-6 text-center text-[13px] text-[#7D8597]">
+                    No notifications yet
+                  </p>
                 )}
               </div>
             </PopoverContent>

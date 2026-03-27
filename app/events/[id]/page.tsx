@@ -1252,18 +1252,6 @@ export default function EventDetailsPage() {
             </>
           ) : null}
 
-          {jamView === "jam" ? (
-            <div className="mt-3 flex items-center justify-center">
-              <button
-                type="button"
-                className="flex items-center gap-1 rounded-full px-3 py-0.5 text-[12px] text-[#AAB0BC]"
-                onClick={() => setJamView("jam")}
-              >
-                Let&apos;s JAM
-                <ArrowLeft className="size-3 rotate-90" />
-              </button>
-            </div>
-          ) : null}
         </Card>
       </section>
 
