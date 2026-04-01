@@ -123,7 +123,7 @@ export function BricksManagePanel() {
       <div className="mb-5 flex items-center justify-end">
         <Button
           type="button"
-          className="bricks-add-button font-poppins h-12 rounded-2xl bg-[#36A9E1] px-5 text-[20px] leading-[120%] font-medium text-white hover:bg-[#2a98cd]"
+          className="bricks-add-button font-poppins h-11 rounded-2xl bg-[#36A9E1] px-5 text-[20px] leading-[120%] font-medium text-white hover:bg-[#2a98cd]"
           onClick={openCreateDialog}
         >
           <Plus className="size-4" />
@@ -147,12 +147,12 @@ export function BricksManagePanel() {
                 key={brick._id}
                 type="button"
                 onClick={() => openEditDialog(brick)}
-                className="brick-manage-card group flex min-h-[74px] items-center justify-between rounded-3xl px-4 py-3 text-left text-white shadow-[0_10px_24px_rgba(15,18,28,0.18)] transition hover:translate-y-[-1px]"
+                className="brick-manage-card group flex items-center justify-between rounded-3xl px-4 py-4 text-left text-white shadow-[0_10px_24px_rgba(15,18,28,0.18)] transition hover:translate-y-[-1px]"
                 style={{ backgroundColor: brick.color }}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <BrickIcon name={brick.icon} className="size-7 shrink-0" />
-                  <span className="font-poppins truncate text-[24px] leading-[120%] font-semibold sm:text-[32px]">{brick.name}</span>
+                  <BrickIcon name={brick.icon} className="size-5 shrink-0" />
+                  <span className="font-poppins truncate text-[18px] leading-[120%] font-semibold sm:text-[18px]">{brick.name}</span>
                 </div>
                 <Pencil className="size-5 opacity-75 transition group-hover:opacity-100" />
               </button>

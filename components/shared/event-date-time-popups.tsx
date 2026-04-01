@@ -43,6 +43,7 @@ type TimeRangePopupProps = {
   startTime: string;
   endTime: string;
   onApply: (value: TimeRangeValue) => void;
+  selectionMode?: "range" | "single";
 };
 
 function parseDateValue(value: string) {
@@ -481,19 +482,21 @@ export function EventTimeRangePopup({
   startTime,
   endTime,
   onApply,
+  selectionMode = "range",
 }: TimeRangePopupProps) {
   const [draftStartDigits, setDraftStartDigits] = React.useState("");
   const [draftEndDigits, setDraftEndDigits] = React.useState("");
   const [activeField, setActiveField] = React.useState<"start" | "end">("start");
+  const isSingleMode = selectionMode === "single";
 
   React.useEffect(() => {
     if (!open) {
       return;
     }
     setDraftStartDigits(toTimeDigits(startTime));
-    setDraftEndDigits(toTimeDigits(endTime));
+    setDraftEndDigits(toTimeDigits(isSingleMode ? startTime || endTime : endTime));
     setActiveField("start");
-  }, [open, startTime, endTime]);
+  }, [open, startTime, endTime, isSingleMode]);
 
   const updateActive = (next: (prev: string) => string) => {
     if (activeField === "start") {
@@ -509,7 +512,7 @@ export function EventTimeRangePopup({
         return prev;
       }
       const next = `${prev}${digit}`;
-      if (next.length === 4 && activeField === "start") {
+      if (next.length === 4 && activeField === "start" && !isSingleMode) {
         setActiveField("end");
       }
       return next;
@@ -520,7 +523,9 @@ export function EventTimeRangePopup({
     updateActive((prev) => prev.slice(0, -1));
   };
 
-  const canApply = isValidTimeDigits(draftStartDigits) && isValidTimeDigits(draftEndDigits);
+  const canApply =
+    isValidTimeDigits(draftStartDigits) &&
+    (isSingleMode || isValidTimeDigits(draftEndDigits));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -532,19 +537,21 @@ export function EventTimeRangePopup({
           </p>
 
           <div className="space-y-3 rounded-[22px] bg-[#ECEDEF] p-3">
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${isSingleMode ? "grid-cols-1" : "grid-cols-2"}`}>
               <TimeDigitSlots
                 label="Start Time"
                 digits={draftStartDigits}
                 active={activeField === "start"}
                 onClick={() => setActiveField("start")}
               />
-              <TimeDigitSlots
-                label="End Time"
-                digits={draftEndDigits}
-                active={activeField === "end"}
-                onClick={() => setActiveField("end")}
-              />
+              {!isSingleMode ? (
+                <TimeDigitSlots
+                  label="End Time"
+                  digits={draftEndDigits}
+                  active={activeField === "end"}
+                  onClick={() => setActiveField("end")}
+                />
+              ) : null}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -580,9 +587,11 @@ export function EventTimeRangePopup({
                   if (!canApply) {
                     return;
                   }
+                  const nextStartTime = toTimeValue(draftStartDigits);
+                  const nextEndTime = isSingleMode ? nextStartTime : toTimeValue(draftEndDigits);
                   onApply({
-                    startTime: toTimeValue(draftStartDigits),
-                    endTime: toTimeValue(draftEndDigits),
+                    startTime: nextStartTime,
+                    endTime: nextEndTime,
                   });
                   onOpenChange(false);
                 }}

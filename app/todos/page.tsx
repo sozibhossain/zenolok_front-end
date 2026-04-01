@@ -166,7 +166,7 @@ function CategoryCard({
           onOpen(category._id);
         }
       }}
-      className="todo-category-card rounded-[26px] border border-[#D8DEE8] bg-[#F0F3F8] p-4 transition hover:border-[#C7CEDD]"
+      className="todo-category-card rounded-[12px] border border-[#D8DEE8] bg-[#F0F3F8] p-4 transition hover:border-[#C7CEDD]"
     >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-poppins text-[24px] leading-[120%] font-semibold" style={{ color: category.color }}>
@@ -257,8 +257,8 @@ function CategoryCard({
                       {item.scheduledTime}
                     </span>
                   ) : null}
-                  {item.alarm ? <Bell className="size-3.5" /> : null}
-                  {item.repeat ? <Repeat2 className="size-3.5" /> : null}
+                  {item.alarm ? <Bell className="size-3.5 cursor-pointer" /> : null}
+                  {item.repeat ? <Repeat2 className="size-3.5 cursor-pointer" /> : null}
                   <button
                     type="button"
                     aria-label={`Edit ${item.text}`}
@@ -811,7 +811,7 @@ export default function TodosPage() {
             {categoriesQuery.isLoading ? (
               <SectionLoading rows={4} />
             ) : scheduledItems.length ? (
-              <div className="todos-scheduled-panel rounded-[24px] bg-[#ECEFF4] p-3">
+              <div className="todos-scheduled-panel rounded-[12px] bg-[#ECEFF4] p-3">
                 <div
                   className="mb-3 grid grid-cols-3 rounded-full border border-[#D8DEE8] bg-[#F6F6F6] p-1 text-[14px]"
                   style={{ boxShadow: "0px 4px 4px 0px rgba(0, 0, 0, 0)" }}
@@ -849,7 +849,7 @@ export default function TodosPage() {
                       key={category.id}
                       type="button"
                       onClick={() => setScheduledCategoryFilter(category.id)}
-                      className={`rounded-full border px-3 py-0.5 text-[18px] transition ${
+                      className={`rounded-full border px-3 py-0.5 text-[14px] transition ${
                         scheduledCategoryFilter === category.id
                           ? "text-white"
                           : "bg-white"
@@ -903,7 +903,7 @@ export default function TodosPage() {
                           </button>
 
                           <p
-                            className={`font-poppins min-w-0 flex-1 truncate text-[24px] leading-[120%] ${
+                            className={`font-poppins min-w-0 flex-1 truncate text-[18px] leading-[120%] ${
                               isChecked ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"
                             }`}
                           >
@@ -925,10 +925,10 @@ export default function TodosPage() {
                           ) : (
                             <div className="flex shrink-0 items-center gap-1 text-[#BCC2CE]">
                               <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[rgba(203,203,203,1)] p-[2px]">
-                                <Bell className={`size-4 ${todo.alarm ? "opacity-100" : "opacity-35"}`} />
+                                <Bell className={`size-4 cursor-pointer ${todo.alarm ? "opacity-100" : "opacity-35"}`} />
                               </span>
                               <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[rgba(203,203,203,1)] p-[2px]">
-                                <Repeat2 className={`size-4 ${todo.repeat ? "opacity-100" : "opacity-35"}`} />
+                                <Repeat2 className={`size-4 cursor-pointer ${todo.repeat ? "opacity-100" : "opacity-35"}`} />
                               </span>
                             </div>
                           )}

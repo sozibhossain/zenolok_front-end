@@ -884,7 +884,7 @@ export default function SettingsPage() {
       <Dialog open={weekStartModalOpen} onOpenChange={setWeekStartModalOpen}>
         <DialogContent className="max-w-3xl rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-6 space-y-2">
           <DialogHeader>
-            <DialogTitle className="font-poppins text-[30px] leading-[120%] font-semibold text-[#1E2430] sm:text-[36px] lg:text-[40px]">
+            <DialogTitle className="font-poppins text-[24px] leading-[120%] font-semibold text-[#1E2430] sm:text-[24px] lg:text-[40px]">
               Manage weeks start day
             </DialogTitle>
             <DialogDescription>

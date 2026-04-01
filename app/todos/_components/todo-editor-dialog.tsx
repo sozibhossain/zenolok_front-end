@@ -350,6 +350,7 @@ export function TodoEditorDialog({
               onOpenChange={setTimePopupOpen}
               startTime={scheduledTimeInput}
               endTime={scheduledTimeInput}
+              selectionMode="single"
               onApply={({ startTime }) => onScheduledTimeChange(startTime)}
             />
             <EventDateRangePopup
@@ -369,6 +370,7 @@ export function TodoEditorDialog({
               onOpenChange={setAlarmTimePopupOpen}
               startTime={getTimeFromDateTimeInput(alarmDateTimeInput)}
               endTime={getTimeFromDateTimeInput(alarmDateTimeInput)}
+              selectionMode="single"
               onApply={({ startTime }) => {
                 const currentDate = getDateFromDateTimeInput(alarmDateTimeInput);
                 onAlarmDateTimeChange(mergeDateAndTime(currentDate, startTime));

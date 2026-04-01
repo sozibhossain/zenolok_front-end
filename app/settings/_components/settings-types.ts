@@ -39,7 +39,7 @@ export const sections: SidebarSection[] = [
   { id: "bricksManage", label: "Bricks Manage", icon: BadgeCheck },
   { id: "weekStartDay", label: "Manage weeks start day", icon: Bell },
   { id: "switchTimeFormat", label: "Switch time format", icon: Clock3 },
-  // { id: "alarmPreset", label: "Alarm preset", icon: Bell },
+  { id: "alarmPreset", label: "Alarm preset", icon: Bell },
   { id: "darkMode", label: "Dark Mode", icon: Moon },
   { id: "notificationsReminders", label: "Notifications & Reminders", icon: BellPlus },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
