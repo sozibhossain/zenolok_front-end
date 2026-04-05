@@ -124,7 +124,7 @@ export function AppTopNav() {
           {isHomePage ? (
             <>
               <Button
-                className="app-top-nav-today fs-pop-20-medium-center rounded-full border px-7"
+                className="app-top-nav-today fs-pop-20-medium-center rounded-full border px-4 py-1.5 text-[16px] sm:px-7 sm:text-[20px]"
                 onClick={() => {
                   goToToday();
                   router.push("/home");
@@ -135,7 +135,7 @@ export function AppTopNav() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full"
+                className="hidden size-9 rounded-full sm:size-10 md:inline-flex"
                 aria-label="Previous period"
                 onClick={goToPreviousMonth}
               >
@@ -144,7 +144,7 @@ export function AppTopNav() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full"
+                className="hidden size-9 rounded-full sm:size-10 md:inline-flex"
                 aria-label="Next period"
                 onClick={goToNextMonth}
               >
@@ -184,7 +184,7 @@ export function AppTopNav() {
           <Button
             variant="ghost"
             size="icon"
-            className="app-top-nav-icon-btn rounded-full cursor-pointer"
+            className="app-top-nav-icon-btn size-9 rounded-full cursor-pointer sm:size-10"
             onClick={() => router.push("/search")}
           >
             <Search className="size-5" />
@@ -202,7 +202,7 @@ export function AppTopNav() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="app-top-nav-icon-btn relative rounded-full cursor-pointer"
+                className="app-top-nav-icon-btn relative size-9 rounded-full cursor-pointer sm:size-10"
                 aria-label="Open notifications"
               >
                 <Bell className="size-5" />
@@ -324,7 +324,7 @@ export function AppTopNav() {
           <Button
             variant="ghost"
             size="icon"
-            className="app-top-nav-icon-btn hidden rounded-full cursor-pointer sm:inline-flex"
+            className="app-top-nav-icon-btn inline-flex size-9 rounded-full cursor-pointer sm:size-10"
             onClick={() => router.push("/settings")}
             aria-label="Open settings"
           >
@@ -335,7 +335,7 @@ export function AppTopNav() {
             className="rounded-full border border-transparent transition hover:border-[#D5DAE5]"
             title="Sign out"
           >
-            <Avatar className="size-12 border border-[#D0D5E0]">
+            <Avatar className="size-10 border border-[#D0D5E0] sm:size-12">
               <AvatarImage
                 src={session?.user?.avatar?.url}
                 alt={session?.user?.name || session?.user?.email || "User"}
@@ -351,23 +351,50 @@ export function AppTopNav() {
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1180px] items-center gap-2 px-3 pb-3 md:hidden">
-        {navItems.map((item) => {
-          const active =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+      <div className="mx-auto w-full max-w-[1180px] px-3 pb-3 md:hidden">
+        {isHomePage ? (
+          <div className="flex w-full items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full sm:size-10"
+              aria-label="Previous period"
+              onClick={goToPreviousMonth}
+            >
+              <ChevronLeft className="size-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full sm:size-10"
+              aria-label="Next period"
+              onClick={goToNextMonth}
+            >
+              <ChevronRight className="size-5" />
+            </Button>
+            <p className="app-top-nav-month text-right font-poppins text-[15px] leading-[120%] font-medium">
+              {format(monthCursor, "MMMM yyyy")}
+            </p>
+          </div>
+        ) : null}
+        <div className="mt-2 flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          {navItems.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-          return (
-            <Link key={item.href} href={item.href}>
-              <Badge
-                variant={active ? "blue" : "neutral"}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 !text-[14px] font-medium"
-              >
-                <BrickIcon name={item.iconName} className="size-3.5" />
-                {item.label}
-              </Badge>
-            </Link>
-          );
-        })}
+            return (
+              <Link key={item.href} href={item.href}>
+                <Badge
+                  variant={active ? "blue" : "neutral"}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 !text-[14px] font-medium"
+                >
+                  <BrickIcon name={item.iconName} className="size-3.5" />
+                  {item.label}
+                </Badge>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </header>
   );

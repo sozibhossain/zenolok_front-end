@@ -23,10 +23,12 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  PanelLeft,
   Plus,
   RefreshCw,
   Bell,
   AlarmClock,
+  X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -251,6 +253,7 @@ export default function HomePage() {
   const [expandedEventId, setExpandedEventId] = React.useState<string | null>(
     null,
   );
+  const [eventsDrawerOpen, setEventsDrawerOpen] = React.useState(false);
 
   const weekStartsOn = weekStartsOnMap[preferences.weekStartDay] ?? 1;
   const monthStart = React.useMemo(
@@ -415,6 +418,13 @@ export default function HomePage() {
     },
     [filteredEvents, selectedDate],
   );
+  const handleOpenEventDetails = React.useCallback(
+    (eventId: string) => {
+      setEventsDrawerOpen(false);
+      router.push(`/events/${eventId}`);
+    },
+    [router],
+  );
   const hasEventDateRange = Boolean(eventStartDate && eventEndDate);
   const eventDateSummary = hasEventDateRange
     ? `${formatDateInputSummary(eventStartDate)} - ${formatDateInputSummary(eventEndDate)}`
@@ -566,6 +576,156 @@ export default function HomePage() {
     });
   }, [selectedDateEvents]);
 
+  const eventsSidebarContent = (
+    <>
+      <div className="mb-3 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setCreateEventOpen(true)}
+          className="home-add-event-btn flex size-8 items-center justify-center rounded-lg border border-dashed border-[#BFC7D7] text-[#8A94A7]"
+        >
+          <Plus className="size-4" />
+        </button>
+      </div>
+
+      {selectedDateEvents.length ? (
+        <div className="space-y-2">
+          {selectedDateEvents.map((event) => {
+            const expanded = expandedEventId === event.id;
+            const eventDateLabel = isSameDay(event.start, event.end)
+              ? format(event.startAt, "yyyy-MM-dd")
+              : `${format(event.startAt, "yyyy-MM-dd")} - ${format(event.endAt, "yyyy-MM-dd")}`;
+            const eventTimeLabel = event.isAllDay
+              ? "All day"
+              : formatTimeRangeByPreference(
+                  event.startAt,
+                  event.endAt,
+                  preferences.use24Hour,
+                );
+
+            return (
+              <div
+                key={event.id}
+                className="home-event-card rounded-xl border border-[#D3DAE8] bg-[#DFE4EC] px-2 py-2"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleOpenEventDetails(event.id)}
+                onKeyDown={(keyEvent) => {
+                  if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
+                    return;
+                  }
+
+                  keyEvent.preventDefault();
+                  handleOpenEventDetails(event.id);
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-7 w-1.5 rounded-full"
+                        style={{ backgroundColor: event.color }}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-poppins truncate text-[16px] leading-[120%] font-medium text-[#535A66]">
+                          <span
+                            className={
+                              event.isAllDay
+                                ? "text-[#26A4E6]"
+                                : "text-[#6C7485]"
+                            }
+                          >
+                            {eventTimeLabel}
+                          </span>
+                          <span className="mx-1 text-[#B6BDC9]">|</span>
+                          <span>{event.title}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1 text-[#A2A9B7]">
+                    {event.spansMultipleDays ? (
+                      <RefreshCw className="size-4" />
+                    ) : null}
+                    <Bell className="size-4" />
+                    <AlarmClock className="size-5" />
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center"
+                      aria-label={
+                        expanded
+                          ? "Collapse event todos"
+                          : "Expand event todos"
+                      }
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        setExpandedEventId((prev) =>
+                          prev === event.id ? null : event.id,
+                        );
+                      }}
+                    >
+                      {expanded ? (
+                        <ChevronUp className="size-4" />
+                      ) : (
+                        <ChevronDown className="size-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="font-poppins mt-1 flex items-center gap-1 text-[12px] leading-[120%] text-[#7A8396]">
+                  <CalendarClock className="size-3.5" />
+                  {eventDateLabel}
+                </p>
+
+                <p className="font-poppins mt-1 flex items-center gap-1 text-[12px] leading-[120%] text-[#7A8396]">
+                  <MapPin className="size-3.5" />
+                  {event.location}
+                </p>
+
+                {expanded ? (
+                  <div className="ml-8 mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2">
+                    <div className="space-y-2">
+                      {event.todos.length ? (
+                        event.todos.map((todo) => (
+                          <div
+                            key={todo.id}
+                            className="flex items-center gap-2 text-[13px] text-[var(--text-default)]"
+                          >
+                            <span className="size-2 rounded-full bg-[var(--text-muted)]" />
+                            <span
+                              className={
+                                todo.isCompleted
+                                  ? "line-through text-[var(--text-muted)]"
+                                  : ""
+                              }
+                            >
+                              {todo.text}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[12px] text-[var(--text-muted)]">
+                          No todos yet
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          title="No events"
+          description="No events on selected day."
+        />
+      )}
+    </>
+  );
+
   return (
     <div className="home-page space-y-4">
       <BrickFilterBar
@@ -586,156 +746,35 @@ export default function HomePage() {
         {eventsQuery.isLoading ? (
           <SectionLoading rows={8} />
         ) : (
-          <div className="home-calendar-layout grid gap-4 xl:grid-cols-[272px_minmax(0,1fr)]">
-            <aside className="home-events-sidebar rounded-[24px] border border-[#D8DEEA] bg-[#ECEFF4] p-3">
-              <div className="mb-3 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setCreateEventOpen(true)}
-                  className="home-add-event-btn flex size-8 items-center justify-center rounded-lg border border-dashed border-[#BFC7D7] text-[#8A94A7]"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </div>
-
-              {selectedDateEvents.length ? (
-                <div className="space-y-2">
-                  {selectedDateEvents.map((event) => {
-                    const expanded = expandedEventId === event.id;
-                    const eventDateLabel = isSameDay(event.start, event.end)
-                      ? format(event.startAt, "yyyy-MM-dd")
-                      : `${format(event.startAt, "yyyy-MM-dd")} - ${format(event.endAt, "yyyy-MM-dd")}`;
-                    const eventTimeLabel = event.isAllDay
-                      ? "All day"
-                      : formatTimeRangeByPreference(
-                          event.startAt,
-                          event.endAt,
-                          preferences.use24Hour,
-                        );
-
-                    return (
-                      <div
-                        key={event.id}
-                        className="home-event-card rounded-xl border border-[#D3DAE8] bg-[#DFE4EC] px-2 py-2"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => router.push(`/events/${event.id}`)}
-                        onKeyDown={(keyEvent) => {
-                          if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
-                            return;
-                          }
-
-                          keyEvent.preventDefault();
-                          router.push(`/events/${event.id}`);
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="h-7 w-1.5 rounded-full"
-                                style={{ backgroundColor: event.color }}
-                              />
-                              <div className="min-w-0">
-                                <p className="font-poppins truncate text-[16px] leading-[120%] font-medium text-[#535A66]">
-                                  <span
-                                    className={
-                                      event.isAllDay
-                                        ? "text-[#26A4E6]"
-                                        : "text-[#6C7485]"
-                                    }
-                                  >
-                                    {eventTimeLabel}
-                                  </span>
-                                  <span className="mx-1 text-[#B6BDC9]">|</span>
-                                  <span>{event.title}</span>
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-1 text-[#A2A9B7]">
-                            {event.spansMultipleDays ? (
-                              <RefreshCw className="size-4" />
-                            ) : null}
-                            <Bell className="size-4" />
-                            <AlarmClock className="size-5" />
-                            <button
-                              type="button"
-                              className="inline-flex items-center justify-center"
-                              aria-label={
-                                expanded
-                                  ? "Collapse event todos"
-                                  : "Expand event todos"
-                              }
-                              onClick={(clickEvent) => {
-                                clickEvent.stopPropagation();
-                                setExpandedEventId((prev) =>
-                                  prev === event.id ? null : event.id,
-                                );
-                              }}
-                            >
-                              {expanded ? (
-                                <ChevronUp className="size-4" />
-                              ) : (
-                                <ChevronDown className="size-4" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className="font-poppins mt-1 flex items-center gap-1 text-[12px] leading-[120%] text-[#7A8396]">
-                          <CalendarClock className="size-3.5" />
-                          {eventDateLabel}
-                        </p>
-
-                        <p className="font-poppins mt-1 flex items-center gap-1 text-[12px] leading-[120%] text-[#7A8396]">
-                          <MapPin className="size-3.5" />
-                          {event.location}
-                        </p>
-
-                        {expanded ? (
-                          <div className="ml-8 mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2">
-                            <div className="space-y-2">
-                              {event.todos.length ? (
-                                event.todos.map((todo) => (
-                                  <div
-                                    key={todo.id}
-                                    className="flex items-center gap-2 text-[13px] text-[var(--text-default)]"
-                                  >
-                                    <span className="size-2 rounded-full bg-[var(--text-muted)]" />
-                                    <span
-                                      className={
-                                        todo.isCompleted
-                                          ? "line-through text-[var(--text-muted)]"
-                                          : ""
-                                      }
-                                    >
-                                      {todo.text}
-                                    </span>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-[12px] text-[var(--text-muted)]">
-                                  No todos yet
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No events"
-                  description="No events on selected day."
-                />
-              )}
+          <>
+            <div className="home-calendar-layout grid gap-4 xl:grid-cols-[272px_minmax(0,1fr)]">
+            <aside className="home-events-sidebar hidden rounded-[24px] border border-[#D8DEEA] bg-[#ECEFF4] p-3 xl:block">
+              {eventsSidebarContent}
             </aside>
 
-            <div className="home-calendar-wrap overflow-x-auto">
+            <div className="min-w-0 space-y-2">
+              <div className="flex items-center justify-between xl:hidden">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-10 rounded-xl p-0"
+                  onClick={() => setEventsDrawerOpen(true)}
+                  aria-label="Open selected events drawer"
+                >
+                  <PanelLeft className="size-5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-10 rounded-xl p-0"
+                  onClick={() => setCreateEventOpen(true)}
+                  aria-label="Create event"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+
+              <div className="home-calendar-wrap w-full overflow-x-auto">
               <div className="home-calendar-board min-w-[840px]">
                 <div className="mb-2 grid grid-cols-7">
                   {weekdayLabels.map((weekday) => {
@@ -879,8 +918,38 @@ export default function HomePage() {
                   })}
                 </div>
               </div>
+              </div>
             </div>
-          </div>
+            </div>
+
+            {eventsDrawerOpen ? (
+              <div className="fixed inset-0 z-50 xl:hidden">
+                <button
+                  type="button"
+                  className="absolute inset-0 bg-black/35"
+                  onClick={() => setEventsDrawerOpen(false)}
+                  aria-label="Close selected events drawer overlay"
+                />
+                <aside className="home-events-sidebar absolute left-0 top-0 h-full w-[86%] max-w-[340px] overflow-y-auto border-r border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-[0_16px_44px_rgba(17,24,37,0.20)]">
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="font-poppins text-[22px] leading-[120%] font-semibold text-[var(--text-strong)]">
+                      Day Events
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 w-10 rounded-xl p-0"
+                      onClick={() => setEventsDrawerOpen(false)}
+                      aria-label="Close selected events drawer"
+                    >
+                      <X className="size-5" />
+                    </Button>
+                  </div>
+                  {eventsSidebarContent}
+                </aside>
+              </div>
+            ) : null}
+          </>
         )}
       </section>
 
