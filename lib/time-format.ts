@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 
 const TWELVE_HOUR_FORMAT = "hh:mm a";
 const TWENTY_FOUR_HOUR_FORMAT = "HH:mm";
@@ -54,5 +54,9 @@ export function formatTimeRangeByPreference(
   end: Date,
   use24Hour: boolean,
 ) {
+  if (isSameDay(start, end)) {
+    return formatTimeByPreference(start, use24Hour);
+  }
+
   return `${formatTimeByPreference(start, use24Hour)} - ${formatTimeByPreference(end, use24Hour)}`;
 }

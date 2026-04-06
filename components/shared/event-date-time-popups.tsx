@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type DateRangeValue = {
   startDate: string;
@@ -37,6 +38,7 @@ type DateRangePopupProps = {
 type TimeRangeValue = {
   startTime: string;
   endTime: string;
+  rollsEndToNextDay?: boolean;
 };
 
 type TimeRangePopupProps = {
@@ -65,44 +67,85 @@ function toDateValue(date: Date) {
   return format(date, "yyyy-MM-dd");
 }
 
-function toTimeDigits(value: string) {
-  return value.replace(":", "").replace(/\D/g, "").slice(0, 4);
+type Meridiem = "AM" | "PM";
+type TimeDigits = [string, string, string, string];
+
+function createEmptyTimeDigits(): TimeDigits {
+  return ["", "", "", ""];
 }
 
-function toTimeValue(digits: string) {
-  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+function toTimeDigits(value: string, use24Hour: boolean): { digits: TimeDigits; meridiem: Meridiem } {
+  if (!value) {
+    return { digits: createEmptyTimeDigits(), meridiem: "AM" };
+  }
+
+  const parsed = new Date(`1970-01-01T${value}:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return { digits: createEmptyTimeDigits(), meridiem: "AM" };
+  }
+
+  const meridiem = format(parsed, "a").toUpperCase() as Meridiem;
+  const digitsString = use24Hour ? format(parsed, "HHmm") : format(parsed, "hhmm");
+
+  return {
+    digits: [
+      digitsString[0] || "",
+      digitsString[1] || "",
+      digitsString[2] || "",
+      digitsString[3] || "",
+    ],
+    meridiem,
+  };
 }
 
-function isValidTimeDigits(digits: string) {
-  if (digits.length !== 4) {
+function isCompleteTimeDigits(digits: TimeDigits) {
+  return digits.every((digit) => digit !== "");
+}
+
+function isValidTimeDigits(digits: TimeDigits, use24Hour: boolean) {
+  if (!isCompleteTimeDigits(digits)) {
     return false;
   }
 
-  const hour = Number(digits.slice(0, 2));
-  const minute = Number(digits.slice(2, 4));
-  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+  const hour = Number(`${digits[0]}${digits[1]}`);
+  const minute = Number(`${digits[2]}${digits[3]}`);
+
+  if (use24Hour) {
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+  }
+
+  return hour >= 1 && hour <= 12 && minute >= 0 && minute <= 59;
 }
 
-function isValidPartialTimeDigits(digits: string) {
-  if (!/^\d{0,4}$/.test(digits)) {
+function isValidPartialTimeDigits(digits: TimeDigits, use24Hour: boolean) {
+  if (digits.some((digit) => digit !== "" && !/^\d$/.test(digit))) {
     return false;
   }
 
-  if (digits.length >= 2) {
-    const hour = Number(digits.slice(0, 2));
-    if (hour > 23) {
+  if (digits[0]) {
+    const firstHourDigit = Number(digits[0]);
+    if (firstHourDigit > (use24Hour ? 2 : 1)) {
       return false;
     }
-  } else if (digits.length === 1 && Number(digits[0]) > 2) {
+  }
+
+  if (digits[0] && digits[1]) {
+    const hour = Number(`${digits[0]}${digits[1]}`);
+    if (use24Hour) {
+      if (hour > 23) {
+        return false;
+      }
+    } else if (hour === 0 || hour > 12) {
+      return false;
+    }
+  }
+
+  if (digits[2] && Number(digits[2]) > 5) {
     return false;
   }
 
-  if (digits.length >= 3 && Number(digits[2]) > 5) {
-    return false;
-  }
-
-  if (digits.length === 4) {
-    const minute = Number(digits.slice(2, 4));
+  if (digits[2] && digits[3]) {
+    const minute = Number(`${digits[2]}${digits[3]}`);
     if (minute > 59) {
       return false;
     }
@@ -111,16 +154,57 @@ function isValidPartialTimeDigits(digits: string) {
   return true;
 }
 
-function addMinutesToDigits(digits: string, deltaMinutes: number) {
-  const safeDigits = isValidTimeDigits(digits) ? digits : "0000";
-  const hour = Number(safeDigits.slice(0, 2));
-  const minute = Number(safeDigits.slice(2, 4));
-  const baseMinutes = hour * 60 + minute;
-  const normalizedMinutes = (baseMinutes + deltaMinutes + 1440) % 1440;
-  const nextHour = Math.floor(normalizedMinutes / 60);
-  const nextMinute = normalizedMinutes % 60;
+function timeDigitsToValue(
+  digits: TimeDigits,
+  meridiem: Meridiem,
+  use24Hour: boolean,
+) {
+  if (!isValidTimeDigits(digits, use24Hour)) {
+    return "";
+  }
 
-  return `${String(nextHour).padStart(2, "0")}${String(nextMinute).padStart(2, "0")}`;
+  const hourValue = Number(`${digits[0]}${digits[1]}`);
+  const minuteValue = Number(`${digits[2]}${digits[3]}`);
+  const hour24 = use24Hour
+    ? hourValue
+    : meridiem === "PM"
+      ? (hourValue % 12) + 12
+      : hourValue % 12;
+
+  return `${String(hour24).padStart(2, "0")}:${String(minuteValue).padStart(2, "0")}`;
+}
+
+function timeDigitsToMinutes(
+  digits: TimeDigits,
+  meridiem: Meridiem,
+  use24Hour: boolean,
+) {
+  const value = timeDigitsToValue(digits, meridiem, use24Hour);
+  if (!value) {
+    return null;
+  }
+
+  const [hourValue, minuteValue] = value.split(":").map(Number);
+  return hourValue * 60 + minuteValue;
+}
+
+function minutesToTimeDraft(totalMinutes: number, use24Hour: boolean) {
+  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const hour24 = Math.floor(normalizedMinutes / 60);
+  const minute = normalizedMinutes % 60;
+  const meridiem: Meridiem = hour24 >= 12 ? "PM" : "AM";
+  const hourValue = use24Hour ? hour24 : hour24 % 12 || 12;
+  const digitsString = `${String(hourValue).padStart(2, "0")}${String(minute).padStart(2, "0")}`;
+
+  return {
+    digits: [
+      digitsString[0] || "",
+      digitsString[1] || "",
+      digitsString[2] || "",
+      digitsString[3] || "",
+    ] as TimeDigits,
+    meridiem,
+  };
 }
 
 function DayPill({
@@ -172,44 +256,67 @@ function DayPill({
 function TimeDigitSlots({
   label,
   digits,
-  active,
-  onClick,
+  meridiem,
+  use24Hour,
+  singleMode,
+  activeField,
+  activeIndex,
+  onDigitClick,
+  onMeridiemChange,
 }: {
   label: string;
-  digits: string;
-  active: boolean;
-  onClick: () => void;
+  digits: TimeDigits;
+  meridiem: Meridiem;
+  use24Hour: boolean;
+  singleMode?: boolean;
+  activeField: boolean;
+  activeIndex: number;
+  onDigitClick: (index: number) => void;
+  onMeridiemChange: (value: Meridiem) => void;
 }) {
-  const chars = [digits[0] || "", digits[1] || "", digits[2] || "", digits[3] || ""];
-
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-2xl border px-2 py-2 text-left ${
-        active
-          ? "border-[var(--ui-calendar-accent)] bg-[var(--ui-calendar-popup-slot-active-bg)]"
-          : "border-[var(--ui-calendar-popup-input-border)] bg-[var(--ui-calendar-popup-slot-bg)]"
-      }`}
-      whileTap={{ scale: 0.98 }}
+    <motion.div
+      className={cn(
+        "w-full text-left",
+        singleMode
+          ? "rounded-none border-transparent bg-transparent px-0 py-0"
+          : `rounded-2xl border px-2 py-2 ${
+              activeField
+                ? "border-[var(--ui-calendar-accent)] bg-[var(--ui-calendar-popup-slot-active-bg)]"
+                : "border-[var(--ui-calendar-popup-input-border)] bg-[var(--ui-calendar-popup-slot-bg)]"
+            }`,
+      )}
     >
       <p
-        className={`text-[11px] leading-none ${
-          active ? "text-[var(--ui-calendar-accent)]" : "text-[var(--ui-calendar-popup-muted)]"
-        }`}
+        className={cn(
+          "text-[11px] leading-none",
+          singleMode ? "text-center" : "",
+          activeField
+            ? "text-[var(--ui-calendar-accent)]"
+            : "text-[var(--ui-calendar-popup-muted)]",
+        )}
       >
         {label}
       </p>
-      <div className="mt-1 flex items-center gap-1">
-        {chars.map((char, index) => (
+      <div className={cn("mt-1 flex items-center gap-1", singleMode ? "justify-center" : "")}>
+        {digits.map((char, index) => (
           <React.Fragment key={`${label}-${index}`}>
-            <span
-              className={`inline-flex size-6 items-center justify-center rounded-full text-[12px] leading-none ${
-                char ? "bg-[var(--ui-calendar-accent)] text-white" : "bg-[var(--ui-calendar-keypad-empty)] text-white"
+            <motion.button
+              type="button"
+              onClick={() => onDigitClick(index)}
+              className={`inline-flex size-6 items-center justify-center rounded-full border text-[12px] leading-none transition ${
+                char
+                  ? "border-[var(--ui-calendar-accent)] bg-[var(--ui-calendar-accent)] text-white"
+                  : "border-transparent bg-[var(--ui-calendar-keypad-empty)] text-white"
+              } ${
+                activeField && activeIndex === index
+                  ? "ring-2 ring-[var(--ui-calendar-accent)]/35 ring-offset-1 ring-offset-[var(--ui-calendar-popup-slot-bg)]"
+                  : ""
               }`}
+              whileTap={{ scale: 0.95 }}
             >
-              {char || "-"}
-            </span>
+              {char || "0"}
+            </motion.button>
             {index === 1 ? (
               <span className="inline-flex w-2 items-center justify-center text-[14px] leading-none text-[var(--ui-calendar-popup-subtle)]">
                 :
@@ -218,7 +325,26 @@ function TimeDigitSlots({
           </React.Fragment>
         ))}
       </div>
-    </motion.button>
+      {!use24Hour ? (
+        <div className={cn("mt-1 flex items-center gap-2", singleMode ? "justify-center" : "pl-1")}>
+          {(["AM", "PM"] as const).map((value) => (
+            <motion.button
+              key={`${label}-${value}`}
+              type="button"
+              onClick={() => onMeridiemChange(value)}
+              className={`text-[10px] font-medium transition ${
+                meridiem === value
+                  ? "text-[var(--ui-calendar-accent)]"
+                  : "text-[var(--ui-calendar-popup-subtle)]"
+              }`}
+              whileTap={{ scale: 0.96 }}
+            >
+              {value}
+            </motion.button>
+          ))}
+        </div>
+      ) : null}
+    </motion.div>
   );
 }
 
@@ -585,9 +711,12 @@ export function EventTimeRangePopup({
   selectionMode = "range",
 }: TimeRangePopupProps) {
   const { preferences } = useAppState();
-  const [draftStartDigits, setDraftStartDigits] = React.useState("");
-  const [draftEndDigits, setDraftEndDigits] = React.useState("");
+  const [draftStartDigits, setDraftStartDigits] = React.useState<TimeDigits>(createEmptyTimeDigits());
+  const [draftEndDigits, setDraftEndDigits] = React.useState<TimeDigits>(createEmptyTimeDigits());
+  const [draftStartMeridiem, setDraftStartMeridiem] = React.useState<Meridiem>("AM");
+  const [draftEndMeridiem, setDraftEndMeridiem] = React.useState<Meridiem>("AM");
   const [activeField, setActiveField] = React.useState<"start" | "end">("start");
+  const [activeDigitIndex, setActiveDigitIndex] = React.useState(0);
   const isSingleMode = selectionMode === "single";
 
   React.useEffect(() => {
@@ -595,60 +724,143 @@ export function EventTimeRangePopup({
       return;
     }
 
-    setDraftStartDigits(toTimeDigits(startTime));
-    setDraftEndDigits(toTimeDigits(isSingleMode ? startTime || endTime : endTime));
-    setActiveField("start");
-  }, [open, startTime, endTime, isSingleMode]);
+    const nextStartDraft = toTimeDigits(startTime, preferences.use24Hour);
+    const nextEndDraft = toTimeDigits(
+      isSingleMode ? startTime || endTime : endTime,
+      preferences.use24Hour,
+    );
 
-  const updateActive = (next: (prev: string) => string) => {
-    if (activeField === "start") {
-      setDraftStartDigits((prev) => next(prev));
+    setDraftStartDigits(nextStartDraft.digits);
+    setDraftStartMeridiem(nextStartDraft.meridiem);
+    setDraftEndDigits(nextEndDraft.digits);
+    setDraftEndMeridiem(nextEndDraft.meridiem);
+    setActiveField("start");
+    setActiveDigitIndex(0);
+  }, [endTime, isSingleMode, open, preferences.use24Hour, startTime]);
+
+  const getActiveDigits = () =>
+    activeField === "start" ? draftStartDigits : draftEndDigits;
+  const updateDigitsForField = (
+    field: "start" | "end",
+    nextDigits: TimeDigits,
+  ) => {
+    if (field === "start") {
+      setDraftStartDigits(nextDigits);
       return;
     }
 
-    setDraftEndDigits((prev) => next(prev));
+    setDraftEndDigits(nextDigits);
+  };
+
+  const updateMeridiemForField = (
+    field: "start" | "end",
+    value: Meridiem,
+  ) => {
+    if (field === "start") {
+      setDraftStartMeridiem(value);
+      return;
+    }
+
+    setDraftEndMeridiem(value);
+  };
+
+  const selectDigit = (field: "start" | "end", index: number) => {
+    setActiveField(field);
+    setActiveDigitIndex(index);
   };
 
   const handleDigit = (digit: string) => {
-    updateActive((prev) => {
-      if (prev.length >= 4) {
-        return prev;
-      }
+    const sourceDigits = [...getActiveDigits()] as TimeDigits;
+    sourceDigits[activeDigitIndex] = digit;
 
-      const next = `${prev}${digit}`;
-      if (!isValidPartialTimeDigits(next)) {
-        return prev;
-      }
+    if (!isValidPartialTimeDigits(sourceDigits, preferences.use24Hour)) {
+      return;
+    }
 
-      if (next.length === 4 && activeField === "start" && !isSingleMode) {
-        setActiveField("end");
-      }
+    updateDigitsForField(activeField, sourceDigits);
 
-      return next;
-    });
+    if (activeDigitIndex < 3) {
+      setActiveDigitIndex((prev) => prev + 1);
+      return;
+    }
+
+    if (activeField === "start" && !isSingleMode) {
+      setActiveField("end");
+      setActiveDigitIndex(0);
+    }
   };
 
   const handleBackspace = () => {
-    updateActive((prev) => prev.slice(0, -1));
+    const sourceDigits = [...getActiveDigits()] as TimeDigits;
+    let nextIndex = activeDigitIndex;
+
+    if (!sourceDigits[nextIndex]) {
+      nextIndex = 0;
+      for (let index = activeDigitIndex - 1; index >= 0; index -= 1) {
+        if (sourceDigits[index] !== "") {
+          nextIndex = index;
+          break;
+        }
+      }
+    }
+
+    sourceDigits[nextIndex] = "";
+    updateDigitsForField(activeField, sourceDigits);
+    setActiveDigitIndex(nextIndex);
   };
 
   const handleClear = () => {
-    updateActive(() => "");
+    updateDigitsForField(activeField, createEmptyTimeDigits());
+    setActiveDigitIndex(0);
   };
 
-  const handleAdjustActiveByMinutes = (deltaMinutes: number) => {
-    updateActive((prev) => addMinutesToDigits(prev, deltaMinutes));
+  const handleDurationPreset = (durationMinutes: number) => {
+    if (isSingleMode) {
+      return;
+    }
+
+    const startMinutes = timeDigitsToMinutes(
+      draftStartDigits,
+      draftStartMeridiem,
+      preferences.use24Hour,
+    );
+
+    if (startMinutes === null) {
+      return;
+    }
+
+    const nextEndDraft = minutesToTimeDraft(
+      startMinutes + durationMinutes,
+      preferences.use24Hour,
+    );
+
+    setDraftEndDigits(nextEndDraft.digits);
+    setDraftEndMeridiem(nextEndDraft.meridiem);
+    setActiveField("end");
+    setActiveDigitIndex(3);
   };
 
-  const canApply =
-    isValidTimeDigits(draftStartDigits) &&
-    (isSingleMode || isValidTimeDigits(draftEndDigits));
+  const isStartValid = isValidTimeDigits(draftStartDigits, preferences.use24Hour);
+  const isEndValid = isSingleMode || isValidTimeDigits(draftEndDigits, preferences.use24Hour);
+  const startMinutes = isStartValid
+    ? timeDigitsToMinutes(draftStartDigits, draftStartMeridiem, preferences.use24Hour)
+    : null;
+  const endMinutes =
+    !isSingleMode && isEndValid
+      ? timeDigitsToMinutes(draftEndDigits, draftEndMeridiem, preferences.use24Hour)
+      : null;
+  const rollsEndToNextDay =
+    !isSingleMode &&
+    startMinutes !== null &&
+    endMinutes !== null &&
+    endMinutes < startMinutes;
+  const canApply = isStartValid && isEndValid;
   const formatLabel = preferences.use24Hour ? "24-hour format" : "12-hour format";
   const keypadDigits = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const shortcuts = [
-    { label: "+1h", value: 60 },
-    { label: "+15", value: 15 },
-    { label: "-1h", value: -60 },
+    { label: "1h", value: 60 },
+    { label: "1.5h", value: 90 },
+    { label: "2h", value: 120 },
   ];
 
   return (
@@ -665,15 +877,25 @@ export function EventTimeRangePopup({
               <TimeDigitSlots
                 label="Start Time"
                 digits={draftStartDigits}
-                active={activeField === "start"}
-                onClick={() => setActiveField("start")}
+                meridiem={draftStartMeridiem}
+                use24Hour={preferences.use24Hour}
+                singleMode={isSingleMode}
+                activeField={activeField === "start"}
+                activeIndex={activeField === "start" ? activeDigitIndex : -1}
+                onDigitClick={(index) => selectDigit("start", index)}
+                onMeridiemChange={(value) => updateMeridiemForField("start", value)}
               />
               {!isSingleMode ? (
                 <TimeDigitSlots
                   label="End Time"
                   digits={draftEndDigits}
-                  active={activeField === "end"}
-                  onClick={() => setActiveField("end")}
+                  meridiem={draftEndMeridiem}
+                  use24Hour={preferences.use24Hour}
+                  singleMode={false}
+                  activeField={activeField === "end"}
+                  activeIndex={activeField === "end" ? activeDigitIndex : -1}
+                  onDigitClick={(index) => selectDigit("end", index)}
+                  onMeridiemChange={(value) => updateMeridiemForField("end", value)}
                 />
               ) : null}
             </div>
@@ -686,7 +908,7 @@ export function EventTimeRangePopup({
               <span className="h-px flex-1 bg-[var(--ui-calendar-popup-input-border)]" />
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1fr)_56px] gap-3">
+            <div className={`grid gap-3 ${isSingleMode ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_56px]"}`}>
               <div className="grid grid-cols-3 gap-x-3 gap-y-2">
                 {keypadDigits.map((digit) => (
                   <motion.button
@@ -726,43 +948,61 @@ export function EventTimeRangePopup({
                 </motion.button>
               </div>
 
-              <div className="flex flex-col items-center gap-2 pt-1">
-                {shortcuts.map((shortcut) => (
-                  <motion.button
-                    key={shortcut.label}
-                    type="button"
-                    onClick={() => handleAdjustActiveByMinutes(shortcut.value)}
-                    className="flex h-10 w-full items-center justify-center rounded-full bg-[var(--ui-calendar-popup-slot-bg)] px-2 text-[11px] font-medium text-[var(--ui-calendar-popup-subtle)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
-                    whileTap={{ scale: 0.96 }}
-                  >
-                    {shortcut.label}
-                  </motion.button>
-                ))}
-              </div>
+              {!isSingleMode ? (
+                <div className="flex flex-col items-center gap-2 pt-1">
+                  {shortcuts.map((shortcut) => (
+                    <motion.button
+                      key={shortcut.label}
+                      type="button"
+                      onClick={() => handleDurationPreset(shortcut.value)}
+                      disabled={!isStartValid}
+                      className="flex h-10 w-full items-center justify-center rounded-full bg-[var(--ui-calendar-popup-slot-bg)] px-2 text-[11px] font-medium text-[var(--ui-calendar-popup-subtle)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)] disabled:opacity-40"
+                      whileTap={{ scale: 0.96 }}
+                    >
+                      {shortcut.label}
+                    </motion.button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
-            <div className="flex justify-end">
-              <motion.button
-                type="button"
-                disabled={!canApply}
-                onClick={() => {
-                  if (!canApply) {
-                    return;
-                  }
+            {rollsEndToNextDay ? (
+              <p className="text-[11px] text-[var(--ui-calendar-accent)]">
+                End date will move to the next day.
+              </p>
+            ) : null}
 
-                  const nextStartTime = toTimeValue(draftStartDigits);
-                  const nextEndTime = isSingleMode ? nextStartTime : toTimeValue(draftEndDigits);
-                  onApply({
-                    startTime: nextStartTime,
-                    endTime: nextEndTime,
-                  });
-                  onOpenChange(false);
-                }}
-                className="rounded-full px-2 text-[12px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)] disabled:opacity-40"
-                whileTap={{ scale: 0.97 }}
-              >
-                Done
-              </motion.button>
+            <div className="flex min-h-6 justify-end">
+              {canApply ? (
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    const nextStartTime = timeDigitsToValue(
+                      draftStartDigits,
+                      draftStartMeridiem,
+                      preferences.use24Hour,
+                    );
+                    const nextEndTime = isSingleMode
+                      ? nextStartTime
+                      : timeDigitsToValue(
+                          draftEndDigits,
+                          draftEndMeridiem,
+                          preferences.use24Hour,
+                        );
+
+                    onApply({
+                      startTime: nextStartTime,
+                      endTime: nextEndTime,
+                      rollsEndToNextDay,
+                    });
+                    onOpenChange(false);
+                  }}
+                  className="rounded-full px-2 text-[12px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)]"
+                  whileTap={{ scale: 0.97 }}
+                >
+                  Done
+                </motion.button>
+              ) : null}
             </div>
           </div>
         </div>

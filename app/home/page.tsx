@@ -427,6 +427,9 @@ export default function HomePage() {
     [router],
   );
   const hasEventDateRange = Boolean(eventStartDate && eventEndDate);
+  const isSingleDayEvent = Boolean(
+    eventStartDate && eventEndDate && eventStartDate === eventEndDate,
+  );
 
   const createBrickMutation = useMutation({
     mutationFn: () => {
@@ -462,14 +465,21 @@ export default function HomePage() {
         throw new Error("Start and end dates are required");
       }
 
-      if (!eventIsAllDay && (!eventStartTime || !eventEndTime)) {
+      const usesSingleTime = !eventIsAllDay && eventStartDate === eventEndDate;
+      const resolvedEndTime = usesSingleTime ? eventStartTime : eventEndTime;
+
+      if (!eventIsAllDay && !eventStartTime) {
+        throw new Error("Start time is required");
+      }
+
+      if (!eventIsAllDay && !usesSingleTime && !resolvedEndTime) {
         throw new Error("Start and end times are required");
       }
 
       const startDate = new Date(
         `${eventStartDate}T${eventStartTime || "00:00"}:00`,
       );
-      const endDate = new Date(`${eventEndDate}T${eventEndTime || "00:00"}:00`);
+      const endDate = new Date(`${eventEndDate}T${resolvedEndTime || "00:00"}:00`);
 
       if (
         Number.isNaN(startDate.getTime()) ||
@@ -481,7 +491,7 @@ export default function HomePage() {
       const normalizedStart = eventIsAllDay ? startOfDay(startDate) : startDate;
       const normalizedEnd = eventIsAllDay ? endOfDay(endDate) : endDate;
 
-      if (normalizedEnd.getTime() <= normalizedStart.getTime()) {
+      if (normalizedEnd.getTime() < normalizedStart.getTime()) {
         throw new Error("End time must be after start time");
       }
 
@@ -572,6 +582,20 @@ export default function HomePage() {
       setEventTimePopupOpen(false);
     }
   }, [hasEventDateRange]);
+
+  React.useEffect(() => {
+    if (eventIsAllDay || !isSingleDayEvent) {
+      return;
+    }
+
+    setEventEndTime((previous) => {
+      if (!eventStartTime) {
+        return previous ? "" : previous;
+      }
+
+      return previous === eventStartTime ? previous : eventStartTime;
+    });
+  }, [eventIsAllDay, eventStartTime, isSingleDayEvent]);
 
   React.useEffect(() => {
     if (!selectedDateEvents.length) {
@@ -1108,6 +1132,7 @@ export default function HomePage() {
                     startValue={eventStartTime}
                     endValue={eventEndTime}
                     use24Hour={preferences.use24Hour}
+                    collapseSingleValue={isSingleDayEvent}
                     onClick={() => setEventTimePopupOpen(true)}
                     disabled={!hasEventDateRange}
                     className="max-w-full"
@@ -1186,16 +1211,28 @@ export default function HomePage() {
           setEventEndDate(endDate);
         }}
       />
-      <EventTimeRangePopup
-        open={eventTimePopupOpen}
-        onOpenChange={setEventTimePopupOpen}
-        startTime={eventStartTime}
-        endTime={eventEndTime}
-        onApply={({ startTime, endTime }) => {
-          setEventStartTime(startTime);
-          setEventEndTime(endTime);
-        }}
-      />
+        <EventTimeRangePopup
+          open={eventTimePopupOpen}
+          onOpenChange={setEventTimePopupOpen}
+          startTime={eventStartTime}
+          endTime={eventEndTime}
+          selectionMode={isSingleDayEvent ? "single" : "range"}
+          onApply={({ startTime, endTime, rollsEndToNextDay }) => {
+            setEventStartTime(startTime);
+            setEventEndTime(endTime);
+            if (
+              rollsEndToNextDay &&
+              eventStartDate &&
+              eventEndDate &&
+              eventStartDate === eventEndDate
+            ) {
+              setEventEndDate(
+                format(addDays(new Date(`${eventEndDate}T00:00:00`), 1), "yyyy-MM-dd"),
+              );
+              toast.message("End time moved the end date to the next day.");
+            }
+          }}
+        />
     </div>
   );
 }

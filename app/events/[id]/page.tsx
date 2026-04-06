@@ -19,7 +19,7 @@ import {
   UserPlus,
   Trash2,
 } from "lucide-react";
-import { endOfDay, format, startOfDay } from "date-fns";
+import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -248,6 +248,9 @@ export default function EventDetailsPage() {
     queryFn: userApi.getProfile,
   });
   const editHasDateRange = Boolean(editStartDate && editEndDate);
+  const editIsSingleDayEvent = Boolean(
+    editStartDate && editEndDate && editStartDate === editEndDate,
+  );
 
   React.useEffect(() => {
     if (!id || !socketServerUrl) {
@@ -460,6 +463,20 @@ export default function EventDetailsPage() {
     }
   }, [editHasDateRange]);
 
+  React.useEffect(() => {
+    if (editIsAllDay || !editIsSingleDayEvent) {
+      return;
+    }
+
+    setEditEndTime((previous) => {
+      if (!editStartTime) {
+        return previous ? "" : previous;
+      }
+
+      return previous === editStartTime ? previous : editStartTime;
+    });
+  }, [editIsAllDay, editIsSingleDayEvent, editStartTime]);
+
   if (eventQuery.isLoading) {
     return <SectionLoading rows={6} />;
   }
@@ -564,13 +581,21 @@ export default function EventDetailsPage() {
       return;
     }
 
-    if (!editIsAllDay && (!editStartTime || !editEndTime)) {
+    const usesSingleTime = !editIsAllDay && editStartDate === editEndDate;
+    const resolvedEndTime = usesSingleTime ? editStartTime : editEndTime;
+
+    if (!editIsAllDay && !editStartTime) {
+      toast.error("Start time is required");
+      return;
+    }
+
+    if (!editIsAllDay && !usesSingleTime && !resolvedEndTime) {
       toast.error("Start and end time are required");
       return;
     }
 
     const nextStart = new Date(`${editStartDate}T${(editStartTime || "00:00")}:00`);
-    const nextEnd = new Date(`${editEndDate}T${(editEndTime || "00:00")}:00`);
+    const nextEnd = new Date(`${editEndDate}T${(resolvedEndTime || "00:00")}:00`);
 
     if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime())) {
       toast.error("Invalid start or end date/time");
@@ -580,7 +605,7 @@ export default function EventDetailsPage() {
     const normalizedStart = editIsAllDay ? startOfDay(nextStart) : nextStart;
     const normalizedEnd = editIsAllDay ? endOfDay(nextEnd) : nextEnd;
 
-    if (normalizedEnd.getTime() <= normalizedStart.getTime()) {
+    if (normalizedEnd.getTime() < normalizedStart.getTime()) {
       toast.error("End date/time must be after start date/time");
       return;
     }
@@ -725,6 +750,7 @@ export default function EventDetailsPage() {
                     startValue={editStartTime}
                     endValue={editEndTime}
                     use24Hour={preferences.use24Hour}
+                    collapseSingleValue={editIsSingleDayEvent}
                     onClick={() => setEditTimePopupOpen(true)}
                     disabled={!editHasDateRange}
                     className="max-w-full"
@@ -788,16 +814,28 @@ export default function EventDetailsPage() {
           setEditEndDate(nextEndDate);
         }}
       />
-      <EventTimeRangePopup
-        open={editTimePopupOpen}
-        onOpenChange={setEditTimePopupOpen}
-        startTime={editStartTime}
-        endTime={editEndTime}
-        onApply={({ startTime: nextStartTime, endTime: nextEndTime }) => {
-          setEditStartTime(nextStartTime);
-          setEditEndTime(nextEndTime);
-        }}
-      />
+        <EventTimeRangePopup
+          open={editTimePopupOpen}
+          onOpenChange={setEditTimePopupOpen}
+          startTime={editStartTime}
+          endTime={editEndTime}
+          selectionMode={editIsSingleDayEvent ? "single" : "range"}
+          onApply={({ startTime: nextStartTime, endTime: nextEndTime, rollsEndToNextDay }) => {
+            setEditStartTime(nextStartTime);
+            setEditEndTime(nextEndTime);
+            if (
+              rollsEndToNextDay &&
+              editStartDate &&
+              editEndDate &&
+              editStartDate === editEndDate
+            ) {
+              setEditEndDate(
+                format(addDays(new Date(`${editEndDate}T00:00:00`), 1), "yyyy-MM-dd"),
+              );
+              toast.message("End time moved the end date to the next day.");
+            }
+          }}
+        />
 
       <section className="event-details-shell rounded-[16px] border border-[var(--border)] bg-[var(--surface-1)] p-2">
         <div className="event-details-card rounded-[14px] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
@@ -962,6 +1000,7 @@ export default function EventDetailsPage() {
                     startValue={eventStartTimeValue}
                     endValue={eventEndTimeValue}
                     use24Hour={preferences.use24Hour}
+                    collapseSingleValue={eventStartDateValue === eventEndDateValue}
                     interactive={false}
                     className="-ml-1"
                   />

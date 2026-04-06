@@ -12,7 +12,7 @@ import {
   Plus,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { endOfDay, format, isSameDay, startOfDay } from "date-fns";
+import { addDays, endOfDay, format, isSameDay, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -100,12 +100,19 @@ export default function EventsPage() {
         throw new Error("Start and end dates are required");
       }
 
-      if (!isAllDay && (!startTime || !endTime)) {
+      const usesSingleTime = !isAllDay && startDate === endDate;
+      const resolvedEndTime = usesSingleTime ? startTime : endTime;
+
+      if (!isAllDay && !startTime) {
+        throw new Error("Start time is required");
+      }
+
+      if (!isAllDay && !usesSingleTime && !resolvedEndTime) {
         throw new Error("Start and end times are required");
       }
 
       const startDateTime = new Date(`${startDate}T${(startTime || "00:00")}:00`);
-      const endDateTime = new Date(`${endDate}T${(endTime || "00:00")}:00`);
+      const endDateTime = new Date(`${endDate}T${(resolvedEndTime || "00:00")}:00`);
 
       if (Number.isNaN(startDateTime.getTime()) || Number.isNaN(endDateTime.getTime())) {
         throw new Error("Invalid start or end date/time");
@@ -114,7 +121,7 @@ export default function EventsPage() {
       const normalizedStart = isAllDay ? startOfDay(startDateTime) : startDateTime;
       const normalizedEnd = isAllDay ? endOfDay(endDateTime) : endDateTime;
 
-      if (normalizedEnd.getTime() <= normalizedStart.getTime()) {
+      if (normalizedEnd.getTime() < normalizedStart.getTime()) {
         throw new Error("End date/time must be after start date/time");
       }
 
@@ -260,6 +267,7 @@ export default function EventsPage() {
     }, {});
   }, [paged.items, jamCountQueries]);
   const hasDateRange = Boolean(startDate && endDate);
+  const isSingleDayEvent = Boolean(startDate && endDate && startDate === endDate);
 
   React.useEffect(() => {
     setPage(1);
@@ -293,6 +301,20 @@ export default function EventsPage() {
       setTimePopupOpen(false);
     }
   }, [hasDateRange]);
+
+  React.useEffect(() => {
+    if (isAllDay || !isSingleDayEvent) {
+      return;
+    }
+
+    setEndTime((previous) => {
+      if (!startTime) {
+        return previous ? "" : previous;
+      }
+
+      return previous === startTime ? previous : startTime;
+    });
+  }, [isAllDay, isSingleDayEvent, startTime]);
 
   return (
     <div className="events-page space-y-4">
@@ -526,6 +548,7 @@ export default function EventsPage() {
                     startValue={startTime}
                     endValue={endTime}
                     use24Hour={preferences.use24Hour}
+                    collapseSingleValue={isSingleDayEvent}
                     onClick={() => setTimePopupOpen(true)}
                     disabled={!hasDateRange}
                     className="max-w-full"
@@ -588,16 +611,21 @@ export default function EventsPage() {
           setEndDate(nextEndDate);
         }}
       />
-      <EventTimeRangePopup
-        open={timePopupOpen}
-        onOpenChange={setTimePopupOpen}
-        startTime={startTime}
-        endTime={endTime}
-        onApply={({ startTime: nextStartTime, endTime: nextEndTime }) => {
-          setStartTime(nextStartTime);
-          setEndTime(nextEndTime);
-        }}
-      />
+        <EventTimeRangePopup
+          open={timePopupOpen}
+          onOpenChange={setTimePopupOpen}
+          startTime={startTime}
+          endTime={endTime}
+          selectionMode={isSingleDayEvent ? "single" : "range"}
+          onApply={({ startTime: nextStartTime, endTime: nextEndTime, rollsEndToNextDay }) => {
+            setStartTime(nextStartTime);
+            setEndTime(nextEndTime);
+            if (rollsEndToNextDay && startDate && endDate && startDate === endDate) {
+              setEndDate(format(addDays(new Date(`${endDate}T00:00:00`), 1), "yyyy-MM-dd"));
+              toast.message("End time moved the end date to the next day.");
+            }
+          }}
+        />
     </div>
   );
 }

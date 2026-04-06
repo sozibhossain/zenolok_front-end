@@ -11,6 +11,7 @@ type EventRangeFieldProps = {
   startValue?: string | null;
   endValue?: string | null;
   use24Hour?: boolean;
+  collapseSingleValue?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   interactive?: boolean;
@@ -107,12 +108,15 @@ export function EventRangeField({
   startValue,
   endValue,
   use24Hour = false,
+  collapseSingleValue = false,
   onClick,
   disabled,
   interactive = true,
   className,
 }: EventRangeFieldProps) {
   const Icon = kind === "date" ? CalendarDays : Clock3;
+  const isSingleDate = kind === "date" && Boolean(startValue) && startValue === endValue;
+  const showSingleColumn = kind === "date" ? isSingleDate : collapseSingleValue;
   const startColumn =
     kind === "date"
       ? parseDateLabel(startValue, "Start date")
@@ -127,23 +131,34 @@ export function EventRangeField({
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)]">
         <Icon className="size-[18px]" />
       </span>
-      <span className="grid min-w-0 grid-cols-[minmax(0,132px)_18px_minmax(0,132px)] items-center gap-1.5 sm:grid-cols-[minmax(0,146px)_22px_minmax(0,146px)] sm:gap-3">
-        <RangeColumn
-          meta={kind === "date" ? startColumn.meta : undefined}
-          label={startColumn.label}
-          placeholder={startColumn.placeholder}
-          showMetaIcon={kind === "time"}
-        />
-        <span className="text-center text-[20px] leading-none text-[var(--text-muted)]">
-          -
+      {showSingleColumn ? (
+        <span className="min-w-0">
+          <RangeColumn
+            meta={kind === "date" ? startColumn.meta : undefined}
+            label={startColumn.label}
+            placeholder={startColumn.placeholder}
+            showMetaIcon={kind === "time"}
+          />
         </span>
-        <RangeColumn
-          meta={kind === "date" ? endColumn.meta : undefined}
-          label={endColumn.label}
-          placeholder={endColumn.placeholder}
-          showMetaIcon={kind === "time"}
-        />
-      </span>
+      ) : (
+        <span className="grid min-w-0 grid-cols-[minmax(0,132px)_18px_minmax(0,132px)] items-center gap-1.5 sm:grid-cols-[minmax(0,146px)_22px_minmax(0,146px)] sm:gap-3">
+          <RangeColumn
+            meta={kind === "date" ? startColumn.meta : undefined}
+            label={startColumn.label}
+            placeholder={startColumn.placeholder}
+            showMetaIcon={kind === "time"}
+          />
+          <span className="text-center text-[20px] leading-none text-[var(--text-muted)]">
+            -
+          </span>
+          <RangeColumn
+            meta={kind === "date" ? endColumn.meta : undefined}
+            label={endColumn.label}
+            placeholder={endColumn.placeholder}
+            showMetaIcon={kind === "time"}
+          />
+        </span>
+      )}
     </>
   );
 
