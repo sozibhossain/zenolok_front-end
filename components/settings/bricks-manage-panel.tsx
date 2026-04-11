@@ -209,7 +209,7 @@ export function BricksManagePanel() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="brick-manage-dialog flex max-h-[90vh] max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-6">
           <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle className="font-poppins text-[32px] leading-[120%] font-semibold text-[var(--text-strong)]">
+            <DialogTitle className="font-poppins text-[24px] leading-[120%] font-semibold text-[var(--text-strong)]">
               {editingBrick ? "Edit Brick" : "New Brick"}
             </DialogTitle>
           </DialogHeader>
@@ -218,7 +218,7 @@ export function BricksManagePanel() {
             <div className="flex flex-wrap items-center justify-center gap-3">
               <div className="brick-manage-preview inline-flex min-w-[180px] items-center justify-center gap-2 rounded-full px-5 py-2 text-white" style={{ backgroundColor: color }}>
                 <BrickIcon name={icon} className="size-5" />
-                <span className="font-poppins text-[24px] leading-[120%] font-semibold sm:text-[32px]">{previewLabel}</span>
+                <span className="font-poppins text-[24px] leading-[120%] font-semibold sm:text-[24px]">{previewLabel}</span>
               </div>
             </div>
 

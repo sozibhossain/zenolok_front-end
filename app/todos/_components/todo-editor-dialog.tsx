@@ -284,6 +284,7 @@ export function TodoEditorDialog({
               onOpenChange={setDatePopupOpen}
               startDate={scheduledDateInput}
               endDate={scheduledDateInput}
+              selectionMode="single"
               onApply={({ startDate }) => onScheduledDateChange(startDate)}
             />
             <EventTimeRangePopup

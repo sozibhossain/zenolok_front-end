@@ -72,7 +72,7 @@ export function CategoryDetailDialog({
                       {isChecked ? <span className="size-2.5 rounded-full bg-[#7DC97E]" /> : null}
                     </button>
                     <span
-                      className={`flex-1 truncate text-[30px] leading-[120%] sm:text-[32px] ${
+                      className={`flex-1 truncate text-[24px] leading-[120%] sm:text-[24px] ${
                         isChecked ? "text-[var(--text-muted)] line-through" : "text-[var(--text-default)]"
                       }`}
                     >

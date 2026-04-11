@@ -33,6 +33,7 @@ type DateRangePopupProps = {
   startDate: string;
   endDate: string;
   onApply: (value: DateRangeValue) => void;
+  selectionMode?: "range" | "single";
 };
 
 type TimeRangeValue = {
@@ -374,9 +375,11 @@ export function EventDateRangePopup({
   startDate,
   endDate,
   onApply,
+  selectionMode = "range",
 }: DateRangePopupProps) {
   const minYear = 1900;
   const maxYear = 2100;
+  const isSingleMode = selectionMode === "single";
   const [draftStart, setDraftStart] = React.useState<Date | null>(null);
   const [draftEnd, setDraftEnd] = React.useState<Date | null>(null);
   const [cursorMonth, setCursorMonth] = React.useState(startOfMonth(new Date()));
@@ -397,11 +400,11 @@ export function EventDateRangePopup({
     const normalizedEnd = parsedEnd || parsedStart || normalizedStart;
 
     setDraftStart(normalizedStart);
-    setDraftEnd(normalizedEnd);
+    setDraftEnd(isSingleMode ? null : normalizedEnd);
     setCursorMonth(startOfMonth(normalizedStart));
     setView("day");
     setYearSearch("");
-  }, [open, startDate, endDate]);
+  }, [open, startDate, endDate, isSingleMode]);
 
   const monthStart = startOfMonth(cursorMonth);
   const monthEnd = endOfMonth(cursorMonth);
@@ -490,6 +493,12 @@ export function EventDateRangePopup({
   }, [open, view, scrollTargetYear, filteredYears.length, scrollToActiveYear]);
 
   const handleDaySelect = (day: Date) => {
+    if (isSingleMode) {
+      setDraftStart(day);
+      setDraftEnd(null);
+      return;
+    }
+
     if (!draftStart || draftEnd) {
       setDraftStart(day);
       setDraftEnd(null);
@@ -511,7 +520,7 @@ export function EventDateRangePopup({
       return;
     }
 
-    const normalizedEnd = draftEnd || draftStart;
+    const normalizedEnd = isSingleMode ? draftStart : draftEnd || draftStart;
     onApply({
       startDate: toDateValue(draftStart),
       endDate: toDateValue(normalizedEnd),

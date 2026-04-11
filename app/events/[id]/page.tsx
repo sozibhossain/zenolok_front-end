@@ -39,8 +39,8 @@ import {
 } from "@/lib/time-format";
 import { AllDayTabToggle } from "@/components/shared/all-day-tab-toggle";
 import { BrickIcon } from "@/components/shared/brick-icon";
-import { DragScrollArea } from "@/components/shared/drag-scroll-area";
 import { EmptyState } from "@/components/shared/empty-state";
+import { EventBrickSelector } from "@/components/shared/event-brick-selector";
 import {
   EventDateRangePopup,
   EventTimeRangePopup,
@@ -769,29 +769,12 @@ export default function EventDetailsPage() {
                 />
               </div>
             </div>
-            <DragScrollArea className="pb-1">
-              {bricks.map((brick) => (
-                <button
-                  key={brick._id}
-                  type="button"
-                  className="shrink-0"
-                  onClick={() => setEditBrickId(brick._id)}
-                >
-                  <Badge
-                    variant={editBrickId === brick._id ? "blue" : "neutral"}
-                    style={
-                      editBrickId === brick._id
-                        ? { backgroundColor: brick.color }
-                        : { color: brick.color, borderColor: brick.color }
-                    }
-                    className="rounded-full px-4 py-1 !text-[16px]"
-                  >
-                    <BrickIcon name={brick.icon} className="size-4" />{" "}
-                    {brick.name}
-                  </Badge>
-                </button>
-              ))}
-            </DragScrollArea>
+            <EventBrickSelector
+              bricks={bricks}
+              selectedBrickId={editBrickId}
+              onSelectBrick={setEditBrickId}
+              badgeClassName="!text-[16px]"
+            />
           </div>
           <DialogFooter>
             <Button

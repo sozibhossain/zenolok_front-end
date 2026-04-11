@@ -72,11 +72,11 @@ export interface TodoItem {
   text: string;
   isCompleted: boolean;
   createdBy: string;
-  scheduledDate?: string;
-  scheduledTime?: string;
-  alarm?: string;
-  alarmPreset?: AlarmPresetKey;
-  repeat?: "daily" | "weekly" | "monthly" | "yearly";
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  alarm?: string | null;
+  alarmPreset?: AlarmPresetKey | null;
+  repeat?: "daily" | "weekly" | "monthly" | "yearly" | null;
   createdAt: string;
   updatedAt: string;
   sectionLabel?: string;

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format, startOfDay } from "date-fns";
 import {
   Bell,
   CalendarClock,
@@ -65,7 +65,7 @@ const TODO_ALARM_PRESET_OFFSET_MINUTES: Record<TodoAlarmPreset, number | null> =
   preset_3: 1440,
 };
 
-function toDateInputValue(value?: string) {
+function toDateInputValue(value?: string | null) {
   if (!value) {
     return "";
   }
@@ -143,22 +143,47 @@ function getTodoCategoryMeta(todo: TodoItem, categoryMetaLookup?: CategoryMetaLo
   };
 }
 
-function getScheduledOffsetLabel(value?: string) {
-  if (!value) {
-    return "No date";
+function getScheduledOffsetMeta(scheduledDate?: string | null, scheduledTime?: string | null) {
+  if (!scheduledDate) {
+    return { label: "No date", isOverdue: false, isDateOnlyOverdue: false };
   }
 
-  const target = new Date(value);
+  const target = new Date(scheduledDate);
   if (Number.isNaN(target.getTime())) {
-    return "No date";
+    return { label: "No date", isOverdue: false, isDateOnlyOverdue: false };
   }
 
-  const deltaMs = target.getTime() - Date.now();
+  if (!scheduledTime) {
+    const dayDelta = differenceInCalendarDays(startOfDay(target), startOfDay(new Date()));
+
+    if (dayDelta === 0) {
+      return { label: "Today", isOverdue: false, isDateOnlyOverdue: false };
+    }
+
+    const amount = Math.abs(dayDelta);
+    const suffix = amount > 1 ? "s" : "";
+
+    return {
+      label: dayDelta < 0 ? `-${amount} day${suffix}` : `${amount} day${suffix}`,
+      isOverdue: dayDelta < 0,
+      isDateOnlyOverdue: dayDelta < 0,
+    };
+  }
+
+  const [hours, minutes] = scheduledTime.split(":").map(Number);
+  const dueAt = new Date(target);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return { label: "No date", isOverdue: false, isDateOnlyOverdue: false };
+  }
+
+  dueAt.setHours(hours, minutes, 0, 0);
+
+  const deltaMs = dueAt.getTime() - Date.now();
   const isOverdue = deltaMs < 0;
   const absoluteMs = Math.abs(deltaMs);
   const hourMs = 60 * 60 * 1000;
   const dayMs = 24 * hourMs;
-
   const amount =
     absoluteMs >= dayMs
       ? Math.max(1, Math.round(absoluteMs / dayMs))
@@ -166,7 +191,11 @@ function getScheduledOffsetLabel(value?: string) {
   const unit = absoluteMs >= dayMs ? "day" : "hour";
   const suffix = amount > 1 ? "s" : "";
 
-  return isOverdue ? `-${amount} ${unit}${suffix}` : `${amount} ${unit}${suffix}`;
+  return {
+    label: isOverdue ? `-${amount} ${unit}${suffix}` : `${amount} ${unit}${suffix}`,
+    isOverdue,
+    isDateOnlyOverdue: false,
+  };
 }
 
 function CategoryCard({
@@ -248,6 +277,7 @@ function CategoryCard({
         {items.slice(0, 3).map((item) => {
           const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
           const isChecked = item.isCompleted || isPendingDelete;
+          const { isDateOnlyOverdue } = getScheduledOffsetMeta(item.scheduledDate, item.scheduledTime);
 
           return (
             <div key={item._id} className="flex items-center gap-2 text-[18px] text-[#3F4552]">
@@ -268,7 +298,15 @@ function CategoryCard({
                   />
                 ) : null}
               </button>
-              <span className={`flex-1 truncate ${isChecked ? "text-[#A4ACBA] line-through" : "text-[#3F4552]"}`}>
+              <span
+                className={`flex-1 truncate ${
+                  isChecked
+                    ? "text-[#A4ACBA] line-through"
+                    : isDateOnlyOverdue
+                      ? "font-medium text-red-500"
+                      : "text-[#3F4552]"
+                }`}
+              >
                 {item.text}
               </span>
               {isChecked ? (
@@ -552,8 +590,8 @@ export default function TodosPage() {
     );
 
     return allTodos.sort((a, b) => {
-      const aTime = new Date(a.scheduledDate || a.createdAt).getTime();
-      const bTime = new Date(b.scheduledDate || b.createdAt).getTime();
+      const aTime = a.scheduledDate ? new Date(a.scheduledDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.scheduledDate ? new Date(b.scheduledDate).getTime() : Number.MAX_SAFE_INTEGER;
 
       const safeATime = Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime;
       const safeBTime = Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime;
@@ -880,11 +918,21 @@ export default function TodosPage() {
                   <button
                     type="button"
                     onClick={() => setScheduledCategoryFilter("all")}
-                    className={`rounded-full border px-3 py-0.5 text-[18px] ${
+                    aria-pressed={scheduledCategoryFilter === "all"}
+                    className="shrink-0 rounded-full border px-4 py-1 text-[14px] font-medium transition"
+                    style={
                       scheduledCategoryFilter === "all"
-                        ? "border-[var(--border)] bg-[var(--ui-tabs-trigger-active-bg)] text-[var(--text-default)]"
-                        : "border-transparent bg-[var(--surface-1)] text-[var(--text-muted)]"
-                    }`}
+                        ? {
+                            backgroundColor: "var(--ui-badge-neutral-bg)",
+                            borderColor: "var(--ui-badge-neutral-border)",
+                            color: "var(--ui-badge-neutral-text)",
+                          }
+                        : {
+                            backgroundColor: "#CBD7E9",
+                            borderColor: "#CBD7E9",
+                            color: "white",
+                          }
+                    }
                   >
                     All
                   </button>
@@ -893,19 +941,21 @@ export default function TodosPage() {
                       key={category.id}
                       type="button"
                       onClick={() => setScheduledCategoryFilter(category.id)}
-                      className={`rounded-full border px-3 py-0.5 text-[14px] transition ${
+                      aria-pressed={scheduledCategoryFilter === category.id}
+                      className="shrink-0 rounded-full border px-4 py-1 text-[14px] font-medium transition"
+                      style={
                         scheduledCategoryFilter === category.id
-                          ? ""
-                          : "text-white"
-                      }`}
-                      style={{
-                        borderColor: category.color,
-                        backgroundColor:
-                          scheduledCategoryFilter === category.id
-                            ? "var(--ui-tabs-trigger-active-bg)"
-                            : category.color,
-                        color: scheduledCategoryFilter === category.id ? category.color : "white",
-                      }}
+                          ? {
+                              backgroundColor: "var(--ui-badge-neutral-bg)",
+                              borderColor: category.color,
+                              color: category.color,
+                            }
+                          : {
+                              backgroundColor: category.color,
+                              borderColor: category.color,
+                              color: "white",
+                            }
+                      }
                       >
                         {category.name}
                       </button>
@@ -916,8 +966,10 @@ export default function TodosPage() {
                   {visibleScheduledItems.length ? (
                     visibleScheduledItems.map((todo) => {
                       const category = getTodoCategoryMeta(todo, categoryMetaLookup);
-                      const offsetLabel = getScheduledOffsetLabel(todo.scheduledDate || todo.createdAt);
-                      const isOverdue = offsetLabel.startsWith("-");
+                      const { label: offsetLabel, isOverdue, isDateOnlyOverdue } = getScheduledOffsetMeta(
+                        todo.scheduledDate,
+                        todo.scheduledTime,
+                      );
                       const isAutoDeleting = Boolean(scheduledAutoDeleteMap[todo._id]);
                       const isChecked = todo.isCompleted || isAutoDeleting;
 
@@ -925,8 +977,9 @@ export default function TodosPage() {
                         <div key={todo._id} className="flex items-center gap-2">
                           <p
                             className={`w-[56px] shrink-0 text-right text-[12px] ${
-                              isOverdue ? "text-[#FF6F61]" : "text-[var(--text-muted)]"
+                              isOverdue ? "font-medium" : ""
                             }`}
+                            style={{ color: isOverdue ? "#FF3B30" : "var(--text-muted)" }}
                           >
                             {offsetLabel}
                           </p>
@@ -950,7 +1003,11 @@ export default function TodosPage() {
 
                           <p
                             className={`font-poppins min-w-0 flex-1 truncate text-[18px] leading-[120%] ${
-                              isChecked ? "text-[var(--text-muted)] line-through" : "text-[var(--text-default)]"
+                              isChecked
+                                ? "text-[var(--text-muted)] line-through"
+                                : isDateOnlyOverdue
+                                  ? "font-medium text-red-500"
+                                  : "text-[var(--text-default)]"
                             }`}
                           >
                             {todo.text}

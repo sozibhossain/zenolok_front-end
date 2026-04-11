@@ -35,15 +35,17 @@ import { toast } from "sonner";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { AllDayTabToggle } from "@/components/shared/all-day-tab-toggle";
 import { BrickIcon } from "@/components/shared/brick-icon";
-import { DragScrollArea } from "@/components/shared/drag-scroll-area";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+  EventBrickSelector,
+  resolveEventBrickSelection,
+} from "@/components/shared/event-brick-selector";
 import {
   EventDateRangePopup,
   EventTimeRangePopup,
 } from "@/components/shared/event-date-time-popups";
 import { EventRangeField, EventSingleField } from "@/components/shared/event-range-field";
 import { SectionLoading } from "@/components/shared/section-loading";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BrickFilterBar } from "@/components/shared/brick-filter-bar";
 import {
@@ -217,7 +219,8 @@ export default function HomePage() {
   const [eventEndTime, setEventEndTime] = React.useState("");
   const [eventDatePopupOpen, setEventDatePopupOpen] = React.useState(false);
   const [eventTimePopupOpen, setEventTimePopupOpen] = React.useState(false);
-  const [newEventBrickIds, setNewEventBrickIds] = React.useState<string[]>([]);
+  const [newEventBrick, setNewEventBrick] = React.useState("");
+  const [preferredCreateEventBrickId, setPreferredCreateEventBrickId] = React.useState("");
   const [selectedDateRange, setSelectedDateRange] = React.useState(() => {
     const normalized = startOfDay(selectedDate);
     return { start: normalized, end: normalized };
@@ -431,6 +434,30 @@ export default function HomePage() {
     eventStartDate && eventEndDate && eventStartDate === eventEndDate,
   );
 
+  const openCreateEventDialog = React.useCallback(() => {
+    const defaultStartDate = format(selectedDateRange.start, "yyyy-MM-dd");
+    const defaultEndDate = format(selectedDateRange.end, "yyyy-MM-dd");
+
+    setEventTitle("");
+    setEventLocation("");
+    setEventIsAllDay(false);
+    setEventDatePopupOpen(false);
+    setEventTimePopupOpen(false);
+    setEventStartDate(defaultStartDate);
+    setEventEndDate(defaultEndDate);
+    setEventStartTime("");
+    setEventEndTime("");
+    setNewEventBrick(
+      resolveEventBrickSelection(
+        allBrickIds,
+        preferredCreateEventBrickId
+          ? [preferredCreateEventBrickId, ...effectiveSelectedBrickIds]
+          : effectiveSelectedBrickIds,
+      ),
+    );
+    setCreateEventOpen(true);
+  }, [allBrickIds, effectiveSelectedBrickIds, preferredCreateEventBrickId, selectedDateRange]);
+
   const createBrickMutation = useMutation({
     mutationFn: () => {
       if (!brickName.trim()) {
@@ -497,10 +524,7 @@ export default function HomePage() {
 
       return eventApi.create({
         title: eventTitle.trim(),
-        brick:
-          newEventBrickIds.length > 0
-            ? newEventBrickIds[newEventBrickIds.length - 1]
-            : undefined,
+        brick: newEventBrick || undefined,
         location: eventLocation.trim() || undefined,
         startTime: normalizedStart.toISOString(),
         endTime: normalizedEnd.toISOString(),
@@ -520,7 +544,7 @@ export default function HomePage() {
       setEventEndTime("");
       setEventDatePopupOpen(false);
       setEventTimePopupOpen(false);
-      setNewEventBrickIds([]);
+      setNewEventBrick("");
     },
     onError: (error: Error) =>
       toast.error(error.message || "Failed to create event"),
@@ -538,23 +562,6 @@ export default function HomePage() {
       return filtered.length === previous.length ? previous : filtered;
     });
   }, [allBrickIds]);
-
-  React.useEffect(() => {
-    if (!createEventOpen) {
-      return;
-    }
-
-    const defaultStartDate = format(selectedDateRange.start, "yyyy-MM-dd");
-    const defaultEndDate = format(selectedDateRange.end, "yyyy-MM-dd");
-
-    setEventDatePopupOpen(false);
-    setEventTimePopupOpen(false);
-    setEventStartDate(defaultStartDate);
-    setEventEndDate(defaultEndDate);
-    setEventStartTime("");
-    setEventEndTime("");
-    setNewEventBrickIds(effectiveSelectedBrickIds);
-  }, [createEventOpen, effectiveSelectedBrickIds, selectedDateRange]);
 
   React.useEffect(() => {
     if (!isRangeDragging) {
@@ -616,7 +623,7 @@ export default function HomePage() {
       <div className="mb-3 flex items-center justify-end">
         <button
           type="button"
-          onClick={() => setCreateEventOpen(true)}
+          onClick={openCreateEventDialog}
           className="home-add-event-btn flex size-8 items-center justify-center rounded-lg border border-dashed border-[#BFC7D7] text-[#8A94A7]"
         >
           <Plus className="size-4" />
@@ -765,17 +772,20 @@ export default function HomePage() {
         bricks={bricks}
         selectedBrickIds={effectiveSelectedBrickIds}
         onToggleBrick={(brickId) =>
-          setSelectedBrickIds((previous) => {
-            const currentSelection = previous ?? allBrickIds;
-            const nextSelection = currentSelection.includes(brickId)
-              ? currentSelection.filter((id) => id !== brickId)
-              : [...currentSelection, brickId];
+          {
+            setPreferredCreateEventBrickId(brickId);
+            setSelectedBrickIds((previous) => {
+              const currentSelection = previous ?? allBrickIds;
+              const nextSelection = currentSelection.includes(brickId)
+                ? currentSelection.filter((id) => id !== brickId)
+                : [...currentSelection, brickId];
 
-            return allBrickIds.length &&
-              allBrickIds.every((id) => nextSelection.includes(id))
-              ? null
-              : nextSelection;
-          })
+              return allBrickIds.length &&
+                allBrickIds.every((id) => nextSelection.includes(id))
+                ? null
+                : nextSelection;
+            });
+          }
         }
         onSelectAll={() =>
           setSelectedBrickIds((previous) => {
@@ -815,7 +825,7 @@ export default function HomePage() {
                     type="button"
                     variant="outline"
                     className="h-10 w-10 rounded-xl p-0"
-                    onClick={() => setCreateEventOpen(true)}
+                    onClick={openCreateEventDialog}
                     aria-label="Create event"
                   >
                     <Plus className="size-4" />
@@ -1100,7 +1110,16 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createEventOpen} onOpenChange={setCreateEventOpen}>
+      <Dialog
+        open={createEventOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            openCreateEventDialog();
+            return;
+          }
+          setCreateEventOpen(false);
+        }}
+      >
         <DialogContent className="max-w-2xl rounded-[26px] space-y-4">
           <DialogHeader>
             <DialogTitle className="text-3xl">Create Event</DialogTitle>
@@ -1152,43 +1171,15 @@ export default function HomePage() {
               </div>
             </div>
 
-            <DragScrollArea className="pb-1">
-              {bricks.map((brick) => (
-                <button
-                  key={brick._id}
-                  type="button"
-                  className="shrink-0"
-                  onClick={() =>
-                    setNewEventBrickIds((previous) =>
-                      previous.includes(brick._id)
-                        ? previous.filter((id) => id !== brick._id)
-                        : [...previous, brick._id],
-                    )
-                  }
-                >
-                  <Badge
-                    variant="neutral"
-                    style={
-                      newEventBrickIds.includes(brick._id)
-                        ? {
-                            color: brick.color,
-                            borderColor: brick.color,
-                            backgroundColor: "var(--ui-badge-neutral-bg)",
-                          }
-                        : {
-                            backgroundColor: brick.color,
-                            color: "white",
-                            borderColor: brick.color,
-                          }
-                    }
-                    className="rounded-full px-4 py-1 !text-[14px]"
-                  >
-                    <BrickIcon name={brick.icon} className="size-4" />{" "}
-                    {brick.name}
-                  </Badge>
-                </button>
-              ))}
-            </DragScrollArea>
+            <EventBrickSelector
+              bricks={bricks}
+              selectedBrickId={newEventBrick}
+              onSelectBrick={(brickId) => {
+                setNewEventBrick(brickId);
+                setPreferredCreateEventBrickId(brickId);
+              }}
+              badgeClassName="!text-[14px]"
+            />
           </div>
           <DialogFooter>
             <Button
