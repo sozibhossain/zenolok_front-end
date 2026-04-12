@@ -17,7 +17,6 @@ import {
 import { toast } from "sonner";
 
 import { useAppState } from "@/components/providers/app-state-provider";
-import { DragScrollArea } from "@/components/shared/drag-scroll-area";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
@@ -29,6 +28,10 @@ import {
   type TodoCategory,
   type TodoItem,
 } from "@/lib/api";
+import {
+  toggleAllBrickSelection,
+  toggleBrickSelection,
+} from "@/lib/brick-filter-selection";
 import { queryKeys } from "@/lib/query-keys";
 import { AddCategoryDialog } from "./_components/add-category-dialog";
 import { CategoryDetailDialog } from "./_components/category-detail-dialog";
@@ -404,10 +407,19 @@ export default function TodosPage() {
   const [newCategoryName, setNewCategoryName] = React.useState("");
   const [newCategoryColor, setNewCategoryColor] = React.useState("#F7C700");
   const [scheduledStatusTab, setScheduledStatusTab] = React.useState<ScheduledStatusTab>("unfinished");
-  const [scheduledCategoryFilter, setScheduledCategoryFilter] = React.useState("all");
+  const [selectedScheduledCategoryIds, setSelectedScheduledCategoryIds] = React.useState<string[] | null>(null);
   const [scheduledAutoDeleteMap, setScheduledAutoDeleteMap] = React.useState<Record<string, true>>({});
   const [scheduledAutoDeleteHiddenMap, setScheduledAutoDeleteHiddenMap] = React.useState<Record<string, true>>({});
   const scheduledAutoDeleteTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const scheduledCategoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
+  const scheduledCategoryDragRef = React.useRef({
+    active: false,
+    moved: false,
+    startX: 0,
+    startScrollLeft: 0,
+  });
+  const scheduledCategorySuppressClickRef = React.useRef(false);
+  const [isScheduledCategoryDragging, setIsScheduledCategoryDragging] = React.useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categoriesWithItems,
@@ -606,6 +618,26 @@ export default function TodosPage() {
       color: category.color,
     }));
   }, [categories]);
+  const scheduledCategoryIds = React.useMemo(
+    () => scheduledCategoryOptions.map((category) => category.id),
+    [scheduledCategoryOptions],
+  );
+  const effectiveScheduledCategoryIds = React.useMemo(() => {
+    if (selectedScheduledCategoryIds === null) {
+      return scheduledCategoryIds;
+    }
+
+    return selectedScheduledCategoryIds;
+  }, [scheduledCategoryIds, selectedScheduledCategoryIds]);
+  const allScheduledCategoriesSelected = React.useMemo(() => {
+    if (!scheduledCategoryIds.length) {
+      return false;
+    }
+
+    return scheduledCategoryIds.every((categoryId) =>
+      effectiveScheduledCategoryIds.includes(categoryId),
+    );
+  }, [effectiveScheduledCategoryIds, scheduledCategoryIds]);
 
   const visibleScheduledItems = React.useMemo(() => {
     return scheduledItems.filter((todo) => {
@@ -618,16 +650,27 @@ export default function TodosPage() {
         return false;
       }
 
-      if (scheduledCategoryFilter !== "all") {
+      if (!effectiveScheduledCategoryIds.length) {
+        return false;
+      }
+
+      if (!allScheduledCategoriesSelected) {
         const category = getTodoCategoryMeta(todo, categoryMetaLookup);
-        if (category.id !== scheduledCategoryFilter) {
+        if (!effectiveScheduledCategoryIds.includes(category.id)) {
           return false;
         }
       }
 
       return true;
     });
-  }, [categoryMetaLookup, scheduledItems, scheduledStatusTab, scheduledCategoryFilter, scheduledAutoDeleteMap]);
+  }, [
+    allScheduledCategoriesSelected,
+    categoryMetaLookup,
+    effectiveScheduledCategoryIds,
+    scheduledItems,
+    scheduledStatusTab,
+    scheduledAutoDeleteMap,
+  ]);
 
   const clearScheduledAutoDelete = React.useCallback((todoId: string) => {
     const timer = scheduledAutoDeleteTimersRef.current[todoId];
@@ -689,13 +732,97 @@ export default function TodosPage() {
   }, [categories.length]);
 
   React.useEffect(() => {
-    if (scheduledCategoryFilter === "all") {
-      return;
-    }
-    if (!scheduledCategoryOptions.some((category) => category.id === scheduledCategoryFilter)) {
-      setScheduledCategoryFilter("all");
-    }
-  }, [scheduledCategoryFilter, scheduledCategoryOptions]);
+    setSelectedScheduledCategoryIds((previous) => {
+      if (previous === null) {
+        return null;
+      }
+
+      const filtered = previous.filter((categoryId) =>
+        scheduledCategoryIds.includes(categoryId),
+      );
+
+      if (filtered.length === scheduledCategoryIds.length) {
+        return null;
+      }
+
+      return filtered.length === previous.length ? previous : filtered;
+    });
+  }, [scheduledCategoryIds]);
+
+  const handleScheduledCategoryMouseDown = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const container = scheduledCategoryScrollerRef.current;
+      if (!container || container.scrollWidth <= container.clientWidth) {
+        return;
+      }
+
+      scheduledCategorySuppressClickRef.current = false;
+      scheduledCategoryDragRef.current = {
+        active: true,
+        moved: false,
+        startX: event.clientX,
+        startScrollLeft: container.scrollLeft,
+      };
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = scheduledCategoryScrollerRef.current;
+      const dragState = scheduledCategoryDragRef.current;
+      if (!container || !dragState.active) {
+        return;
+      }
+
+      const deltaX = event.clientX - dragState.startX;
+      if (!dragState.moved && Math.abs(deltaX) > 4) {
+        dragState.moved = true;
+        setIsScheduledCategoryDragging(true);
+      }
+
+      if (!dragState.moved) {
+        return;
+      }
+
+      container.scrollLeft = dragState.startScrollLeft - deltaX;
+    };
+
+    const handleMouseUp = () => {
+      const wasMoved = scheduledCategoryDragRef.current.moved;
+      if (wasMoved) {
+        scheduledCategorySuppressClickRef.current = true;
+      }
+
+      scheduledCategoryDragRef.current.active = false;
+      scheduledCategoryDragRef.current.moved = false;
+      setIsScheduledCategoryDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  const handleScheduledCategoryClickCapture = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!scheduledCategorySuppressClickRef.current) {
+        return;
+      }
+
+      scheduledCategorySuppressClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
 
   React.useEffect(() => {
     const scheduledIds = new Set(scheduledItems.map((todo) => todo._id));
@@ -914,53 +1041,70 @@ export default function TodosPage() {
                   ))}
                 </div>
 
-                <DragScrollArea className="mb-3 pb-1">
-                  <button
-                    type="button"
-                    onClick={() => setScheduledCategoryFilter("all")}
-                    aria-pressed={scheduledCategoryFilter === "all"}
-                    className="shrink-0 rounded-full border px-4 py-1 text-[14px] font-medium transition"
-                    style={
-                      scheduledCategoryFilter === "all"
-                        ? {
-                            backgroundColor: "var(--ui-badge-neutral-bg)",
-                            borderColor: "var(--ui-badge-neutral-border)",
-                            color: "var(--ui-badge-neutral-text)",
-                          }
-                        : {
-                            backgroundColor: "#CBD7E9",
-                            borderColor: "#CBD7E9",
-                            color: "white",
-                          }
-                    }
-                  >
-                    All
-                  </button>
-                  {scheduledCategoryOptions.map((category) => (
+                <div
+                  ref={scheduledCategoryScrollerRef}
+                  className={`drag-scrollbar-hidden mb-3 overflow-x-auto pb-1 select-none ${
+                    isScheduledCategoryDragging ? "cursor-grabbing" : "cursor-grab"
+                  }`}
+                  onMouseDown={handleScheduledCategoryMouseDown}
+                  onClickCapture={handleScheduledCategoryClickCapture}
+                >
+                  <div className="flex w-max min-w-full items-center gap-2 whitespace-nowrap">
                     <button
-                      key={category.id}
                       type="button"
-                      onClick={() => setScheduledCategoryFilter(category.id)}
-                      aria-pressed={scheduledCategoryFilter === category.id}
+                      onClick={() =>
+                        setSelectedScheduledCategoryIds((previous) =>
+                          toggleAllBrickSelection(previous, scheduledCategoryIds),
+                        )
+                      }
+                      aria-pressed={allScheduledCategoriesSelected}
                       className="shrink-0 rounded-full border px-4 py-1 text-[14px] font-medium transition"
                       style={
-                        scheduledCategoryFilter === category.id
+                        allScheduledCategoriesSelected
                           ? {
                               backgroundColor: "var(--ui-badge-neutral-bg)",
-                              borderColor: category.color,
-                              color: category.color,
+                              borderColor: "var(--ui-badge-neutral-border)",
+                              color: "var(--ui-badge-neutral-text)",
                             }
                           : {
-                              backgroundColor: category.color,
-                              borderColor: category.color,
+                              backgroundColor: "#CBD7E9",
+                              borderColor: "#CBD7E9",
                               color: "white",
                             }
                       }
+                    >
+                      All
+                    </button>
+                    {scheduledCategoryOptions.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedScheduledCategoryIds((previous) =>
+                            toggleBrickSelection(previous, category.id, scheduledCategoryIds),
+                          )
+                        }
+                        aria-pressed={effectiveScheduledCategoryIds.includes(category.id)}
+                        className="shrink-0 rounded-full border px-4 py-1 text-[14px] font-medium transition"
+                        style={
+                          effectiveScheduledCategoryIds.includes(category.id)
+                            ? {
+                                backgroundColor: category.color,
+                                borderColor: category.color,
+                                color: "white",
+                              }
+                            : {
+                                backgroundColor: "var(--ui-badge-neutral-bg)",
+                                borderColor: category.color,
+                                color: category.color,
+                              }
+                        }
                       >
                         {category.name}
                       </button>
                     ))}
-                </DragScrollArea>
+                  </div>
+                </div>
 
                 <div className="space-y-2">
                   {visibleScheduledItems.length ? (

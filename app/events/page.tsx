@@ -335,7 +335,7 @@ export default function EventsPage() {
   return (
     <div className="events-page space-y-4">
       <section className="events-toolbar flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 ">
           <BrickFilterBar
             bricks={bricks}
             selectedBrickIds={effectiveSelectedBrickIds}
@@ -353,20 +353,20 @@ export default function EventsPage() {
           />
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:items-end xl:w-auto">
           <Input
             className="h-10 w-full rounded-xl sm:w-[260px]"
             placeholder="Search events..."
             value={searchText}
             onChange={(event) => setSearchText(event.target.value)}
           />
-          <div className="events-filter-tabs flex items-center rounded-xl border border-[#CCD2DE]">
+          <div className="events-filter-tabs flex w-full items-center rounded-xl border border-[#CCD2DE] sm:w-auto">
             {eventFilters.map((item) => (
               <button
                 key={item.value}
                 type="button"
                 onClick={() => setFilter(item.value)}
-                className={`font-poppins whitespace-nowrap px-4 py-2 text-[20px] leading-[120%] font-medium ${
+                className={`font-poppins flex-1 whitespace-nowrap px-4 py-2 text-center text-[18px] leading-[120%] font-medium sm:flex-none sm:text-[20px] ${
                   filter === item.value
                     ? "bg-[var(--surface-3)] text-[var(--text-strong)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-default)]"
