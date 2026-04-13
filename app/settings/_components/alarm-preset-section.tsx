@@ -160,7 +160,7 @@ export function AlarmPresetSection({
                       <Button
                         type="button"
                         variant="ghost"
-                        className="h-9 rounded-full border border-[var(--border)] bg-white px-3 text-[13px] text-[var(--text-default)] hover:bg-[var(--surface-2)]"
+                        className="h-9 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 text-[13px] font-medium text-[var(--text-default)] shadow-[0_1px_2px_rgba(21,32,54,0.08)] hover:border-[var(--ring)] hover:bg-[var(--surface-3)] disabled:border-[var(--border)] disabled:bg-[var(--surface-1)] disabled:text-[var(--text-muted)] disabled:opacity-80"
                         onClick={(event) => {
                           event.stopPropagation();
                           openEditor(item.key as EditableAlarmPresetKey);
