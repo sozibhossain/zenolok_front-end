@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -189,11 +190,15 @@ function HomeEventTodoRow({
   text: string;
   completed: boolean;
 }) {
+  const markerColor = completed ? "#2CCB62" : "#F7C700";
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-[#2CCB62] bg-white">
-        <span className="size-2.5 rounded-full bg-[#2CCB62]" />
-      </span>
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="size-4 shrink-0 rounded-full border-2 bg-transparent"
+        style={{ borderColor: markerColor }}
+      />
       <span
         className={`font-poppins text-[15px] leading-[120%] font-medium text-[#575F6D] ${
           completed ? "line-through opacity-60" : ""
@@ -310,6 +315,8 @@ function buildWeekSegments(
 export default function HomePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?._id || session?._id || "";
   const [selectedBrickIds, setSelectedBrickIds] = React.useState<
     string[] | null
   >(null);
@@ -441,17 +448,19 @@ export default function HomePage() {
           brickName: event.brick?.name,
           icon: event.brick?.icon,
           isAllDay: event.isAllDay,
-          todos: (event.todos || []).map((todo) => ({
-            id: todo._id,
-            text: todo.text,
-            isCompleted: todo.isCompleted,
-          })),
+          todos: (event.todos || [])
+            .filter((todo) => todo.createdBy === currentUserId)
+            .map((todo) => ({
+              id: todo._id,
+              text: todo.text,
+              isCompleted: todo.isCompleted,
+            })),
         });
         return items;
       },
       [],
     );
-  }, [eventsQuery.data]);
+  }, [currentUserId, eventsQuery.data]);
 
   const filteredEvents = React.useMemo(() => {
     if (!effectiveSelectedBrickIds.length) {
@@ -731,7 +740,8 @@ export default function HomePage() {
       {selectedDateEvents.length ? (
         <div className="space-y-2">
           {selectedDateEvents.map((event) => {
-            const expanded = expandedEventId === event.id;
+            const hasTodos = event.todos.length > 0;
+            const expanded = hasTodos && expandedEventId === event.id;
             const sameDayRange = isSameDay(event.start, event.end);
             const eventStartDateLabel = format(
               event.startAt,
@@ -796,25 +806,29 @@ export default function HomePage() {
                       <RefreshCw className="size-4" />
                     ) : null}
                     <Bell className="size-4" />
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center"
-                      aria-label={
-                        expanded ? "Collapse event todos" : "Expand event todos"
-                      }
-                      onClick={(clickEvent) => {
-                        clickEvent.stopPropagation();
-                        setExpandedEventId((prev) =>
-                          prev === event.id ? null : event.id,
-                        );
-                      }}
-                    >
-                      {expanded ? (
-                        <ChevronUp className="size-4" />
-                      ) : (
-                        <ChevronDown className="size-4" />
-                      )}
-                    </button>
+                    {hasTodos ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center"
+                        aria-label={
+                          expanded
+                            ? "Collapse event todos"
+                            : "Expand event todos"
+                        }
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation();
+                          setExpandedEventId((prev) =>
+                            prev === event.id ? null : event.id,
+                          );
+                        }}
+                      >
+                        {expanded ? (
+                          <ChevronUp className="size-4" />
+                        ) : (
+                          <ChevronDown className="size-4" />
+                        )}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
@@ -842,21 +856,13 @@ export default function HomePage() {
 
                 {expanded ? (
                   <div className="ml-8 mt-2 space-y-2">
-                    {event.todos.length ? (
-                      event.todos.map((todo) => (
-                        <HomeEventTodoRow
-                          key={todo.id}
-                          text={todo.text}
-                          completed={todo.isCompleted}
-                        />
-                      ))
-                    ) : (
-                      <div className="rounded-[18px] border border-[#E2E7F0] bg-white px-3 py-2.5">
-                        <p className="font-poppins text-[13px] text-[#8C95A6]">
-                          No todos yet
-                        </p>
-                      </div>
-                    )}
+                    {event.todos.map((todo) => (
+                      <HomeEventTodoRow
+                        key={todo.id}
+                        text={todo.text}
+                        completed={todo.isCompleted}
+                      />
+                    ))}
                   </div>
                 ) : null}
               </div>
@@ -895,7 +901,7 @@ export default function HomePage() {
           <SectionLoading rows={8} />
         ) : (
           <>
-            <div className="home-calendar-layout grid gap-4 xl:grid-cols-[272px_minmax(0,1fr)]">
+            <div className="home-calendar-layout grid !gap-4 xl:grid-cols-[272px_minmax(0,1fr)]">
               <aside className="home-events-sidebar hidden rounded-[24px] border border-[#D8DEEA] bg-[#ECEFF4] p-3 xl:block">
                 {eventsSidebarContent}
               </aside>
@@ -924,7 +930,7 @@ export default function HomePage() {
 
                 <div className="home-calendar-wrap w-full overflow-x-auto">
                   <div className="home-calendar-board min-w-[820px]">
-                    <div className="mb-2 grid grid-cols-7">
+                    <div className="mb-2 grid grid-cols-7 ">
                       {weekdayLabels.map((weekday) => {
                         const label = format(weekday, "EEE");
                         const isSundayLabel = weekday.getDay() === 0;
@@ -958,11 +964,13 @@ export default function HomePage() {
                             key={`${format(week[0], "yyyy-MM-dd")}-${weekIndex}`}
                             className="relative grid grid-cols-7 overflow-hidden border-b border-[var(--border)] last:border-b-0"
                           >
-                            {week.map((day) => {
+                            {week.map((day, dayIndex) => {
                               const isInSelectedRange =
                                 day >= selectedDateRange.start &&
                                 day <= selectedDateRange.end;
                               const isSunday = day.getDay() === 0;
+                              const isLastDayOfWeek =
+                                dayIndex === week.length - 1;
                               return (
                                 <button
                                   key={format(day, "yyyy-MM-dd")}
@@ -1012,7 +1020,11 @@ export default function HomePage() {
                                     skipRangeSyncRef.current = true;
                                     setSelectedDate(normalized);
                                   }}
-                                  className={`home-day-cell relative flex h-[136px] select-none items-start justify-center border-r border-[var(--border)] px-2 pt-3 pb-2 text-center last:border-r-0 ${
+                                  className={`home-day-cell relative flex h-[136px] select-none items-start justify-center px-2 pt-3 pb-2 text-center ${
+                                    isLastDayOfWeek
+                                      ? "border-r-0"
+                                      : "border-r border-[var(--border)]"
+                                  } ${
                                     isInSelectedRange
                                       ? "bg-[var(--surface-2)]"
                                       : ""
@@ -1035,11 +1047,11 @@ export default function HomePage() {
                               );
                             })}
 
-                            <div className="pointer-events-none absolute inset-x-0 top-14 px-[2px]">
+                            <div className="pointer-events-none absolute inset-x-0 top-14">
                               <div
                                 className={`grid grid-cols-7 auto-rows-[20px] ${
                                   shouldScrollSegments
-                                    ? "pointer-events-auto max-h-[80px] overflow-y-auto pr-1"
+                                    ? "pointer-events-auto max-h-[80px] overflow-y-auto"
                                     : ""
                                 }`}
                               >
@@ -1052,7 +1064,7 @@ export default function HomePage() {
                                       backgroundColor: segment.color,
                                       color: "#FFFFFF",
                                     }}
-                                    className="mx-[1px] flex h-[18px] items-center overflow-hidden rounded-[1px]"
+                                    className="flex h-[18px] items-center overflow-hidden rounded-[1px]"
                                   >
                                     {segment.isStart ? (
                                       <span className="truncate px-1 font-poppins text-[14px] leading-[120%] font-medium text-white">

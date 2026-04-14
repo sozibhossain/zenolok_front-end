@@ -352,6 +352,42 @@ export default function EventDetailsPage() {
       toast.error(error.message || "Failed to delete todo"),
   });
 
+  const addTodoSubnoteMutation = useMutation({
+    mutationFn: ({ todoId, text }: { todoId: string; text: string }) => {
+      if (!text.trim()) {
+        throw new Error("Note text is required");
+      }
+
+      return eventTodoApi.addSubnote(todoId, { text: text.trim() });
+    },
+    onSuccess: refreshEverything,
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to add note"),
+  });
+
+  const updateTodoSubnoteMutation = useMutation({
+    mutationFn: ({
+      todoId,
+      subnoteId,
+      text,
+    }: {
+      todoId: string;
+      subnoteId: string;
+      text: string;
+    }) => {
+      if (!text.trim()) {
+        throw new Error("Note text is required");
+      }
+
+      return eventTodoApi.updateSubnote(todoId, subnoteId, {
+        text: text.trim(),
+      });
+    },
+    onSuccess: refreshEverything,
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to update note"),
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: () => {
       if (!messageText.trim() && !selectedFile) {
@@ -901,6 +937,22 @@ export default function EventDetailsPage() {
                 })
               }
               onDelete={(todoId) => deleteTodoMutation.mutate(todoId)}
+              onAddSubnote={async (todoId, text) => {
+                await addTodoSubnoteMutation.mutateAsync({ todoId, text });
+              }}
+              onUpdateTodo={async (todoId, text) => {
+                await updateTodoMutation.mutateAsync({
+                  todoId,
+                  payload: { text },
+                });
+              }}
+              onUpdateSubnote={async (todoId, subnoteId, text) => {
+                await updateTodoSubnoteMutation.mutateAsync({
+                  todoId,
+                  subnoteId,
+                  text,
+                });
+              }}
             />
             {/* <TodoSection
               todos={sharedTodos}

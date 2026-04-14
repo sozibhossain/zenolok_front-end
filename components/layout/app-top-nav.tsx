@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -82,9 +82,14 @@ function HomeMonthDatePicker({
   className?: string;
   align?: "start" | "center" | "end";
 }) {
+  const minYear = 1900;
+  const maxYear = 2100;
   const { monthCursor, selectedDate, setSelectedDate, preferences } = useAppState();
   const [open, setOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(selectedDate));
+  const [pickerView, setPickerView] = useState<"day" | "year">("day");
+  const activeYearRef = useRef<HTMLDivElement | null>(null);
+  const yearsScrollRef = useRef<HTMLDivElement | null>(null);
   const weekStartsOn = weekStartsOnMap[preferences.weekStartDay] ?? 0;
 
   const monthStart = useMemo(() => startOfMonth(pickerMonth), [pickerMonth]);
@@ -114,6 +119,37 @@ function HomeMonthDatePicker({
       }),
     [calendarStart],
   );
+  const years = useMemo(
+    () => Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index),
+    [],
+  );
+  const activeYear = pickerMonth.getFullYear();
+
+  const scrollToActiveYear = useCallback(() => {
+    const scroller = yearsScrollRef.current;
+    const target = activeYearRef.current;
+    if (!scroller || !target || scroller.clientHeight === 0) {
+      return false;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const targetTopInScroller = targetRect.top - scrollerRect.top + scroller.scrollTop;
+    const centeredScrollTop =
+      targetTopInScroller - scroller.clientHeight / 2 + targetRect.height / 2;
+
+    scroller.scrollTop = Math.max(0, centeredScrollTop);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!open || pickerView !== "year") {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(scrollToActiveYear);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [open, pickerView, activeYear, scrollToActiveYear]);
 
   const handleSelectDate = (day: Date) => {
     setSelectedDate(day);
@@ -126,6 +162,7 @@ function HomeMonthDatePicker({
       onOpenChange={(nextOpen) => {
         if (nextOpen) {
           setPickerMonth(startOfMonth(selectedDate));
+          setPickerView("day");
         }
 
         setOpen(nextOpen);
@@ -156,89 +193,157 @@ function HomeMonthDatePicker({
           </p>
 
           <div className="rounded-[22px] bg-[var(--ui-calendar-popup-panel-bg)] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1">
-                <motion.button
-                  type="button"
-                  onClick={() => setPickerMonth((current) => addMonths(current, -1))}
-                  className="rounded-full p-1 text-[var(--ui-calendar-popup-nav)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
-                  aria-label="Previous month"
-                  whileTap={{ scale: 0.95 }}
+            {pickerView === "year" ? (
+              <div className="space-y-3">
+                <div
+                  ref={yearsScrollRef}
+                  className="max-h-[258px] space-y-4 overflow-y-auto pr-1"
                 >
-                  <ChevronLeft className="size-4" />
-                </motion.button>
+                  {years.map((year) => (
+                    <div
+                      key={year}
+                      ref={year === activeYear ? activeYearRef : null}
+                    >
+                      <p className="mb-2 text-[30px] leading-none font-medium text-[var(--ui-calendar-popup-year)]">
+                        {year}
+                      </p>
+                      <div className="grid grid-cols-6 gap-2">
+                        {Array.from({ length: 12 }, (_, index) => {
+                          const monthDate = new Date(year, index, 1);
+                          const active =
+                            pickerMonth.getFullYear() === year &&
+                            pickerMonth.getMonth() === index;
 
-                <p className="min-w-[156px] text-center text-[22px] leading-none font-medium text-[var(--ui-calendar-popup-strong)] sm:text-[24px]">
-                  {format(pickerMonth, "MMMM yyyy")}
-                </p>
+                          return (
+                            <motion.button
+                              key={`${year}-${index}`}
+                              type="button"
+                              onClick={() => {
+                                setPickerMonth(monthDate);
+                                setPickerView("day");
+                              }}
+                              className={cn(
+                                "flex size-10 items-center justify-center rounded-full text-[20px] leading-none text-white transition-colors",
+                                active
+                                  ? "bg-[var(--ui-calendar-accent)]"
+                                  : "bg-[var(--ui-calendar-neutral-bg)] hover:bg-[var(--ui-calendar-neutral-hover)]",
+                              )}
+                              aria-label={`Select ${format(monthDate, "MMMM yyyy")}`}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              {index + 1}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                <motion.button
-                  type="button"
-                  onClick={() => setPickerMonth((current) => addMonths(current, 1))}
-                  className="rounded-full p-1 text-[var(--ui-calendar-popup-nav)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
-                  aria-label="Next month"
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <ChevronRight className="size-4" />
-                </motion.button>
-              </div>
-
-              <motion.button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[16px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)]"
-                whileTap={{ scale: 0.97 }}
-              >
-                Done
-                <ChevronRight className="size-4" />
-              </motion.button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-7 gap-2 px-0.5">
-              {weekdayLabels.map((weekday) => (
-                <p
-                  key={weekday.key}
-                  className={cn(
-                    "text-center text-[11px] leading-none",
-                    weekday.isSunday
-                      ? "text-[var(--ui-calendar-accent)]"
-                      : "text-[var(--ui-calendar-popup-weekday)]",
-                  )}
-                >
-                  {weekday.label}
-                </p>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-7 gap-x-0 gap-y-2">
-              {days.map((day) => {
-                const inCurrentMonth = isSameMonth(day, pickerMonth);
-                const selected = isSameDay(day, selectedDate);
-                const isSunday = inCurrentMonth && day.getDay() === 0;
-
-                return (
+                <div className="flex items-center justify-end">
                   <motion.button
-                    key={format(day, "yyyy-MM-dd")}
                     type="button"
-                    onClick={() => handleSelectDate(day)}
-                    className={cn(
-                      "mx-auto flex h-9 items-center justify-center rounded-full text-[17px] leading-none transition-colors",
-                      selected
-                        ? "size-9 bg-[#474954] text-white hover:bg-[#3e4049]"
-                        : isSunday
-                          ? "size-9 bg-[var(--ui-calendar-accent)] text-white hover:bg-[var(--ui-calendar-accent-hover)]"
-                          : inCurrentMonth
-                            ? "size-9 bg-[var(--ui-calendar-neutral-bg)] text-white hover:bg-[var(--ui-calendar-neutral-hover)]"
-                            : "size-9 bg-[var(--ui-calendar-outside-bg)] text-[var(--ui-calendar-outside-text)]",
-                    )}
-                    aria-label={`Select ${format(day, "MMMM d, yyyy")}`}
-                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setPickerView("day")}
+                    className="rounded-full px-3 py-1 text-[12px] text-[var(--ui-calendar-popup-subtle)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
+                    whileTap={{ scale: 0.97 }}
                   >
-                    {format(day, "d")}
+                    Back
                   </motion.button>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1">
+                    <motion.button
+                      type="button"
+                      onClick={() => setPickerMonth((current) => addMonths(current, -1))}
+                      className="rounded-full p-1 text-[var(--ui-calendar-popup-nav)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
+                      aria-label="Previous month"
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <ChevronLeft className="size-4" />
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      onClick={() => setPickerView("year")}
+                      className="min-w-[156px] rounded-full px-2 py-1 text-center text-[22px] leading-none font-medium text-[var(--ui-calendar-popup-strong)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] sm:text-[24px]"
+                      aria-label={`Open year picker for ${format(pickerMonth, "MMMM yyyy")}`}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {format(pickerMonth, "MMMM yyyy")}
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      onClick={() => setPickerMonth((current) => addMonths(current, 1))}
+                      className="rounded-full p-1 text-[var(--ui-calendar-popup-nav)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
+                      aria-label="Next month"
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <ChevronRight className="size-4" />
+                    </motion.button>
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[16px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)]"
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    Done
+                    <ChevronRight className="size-4" />
+                  </motion.button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-7 gap-2 px-0.5">
+                  {weekdayLabels.map((weekday) => (
+                    <p
+                      key={weekday.key}
+                      className={cn(
+                        "text-center text-[11px] leading-none",
+                        weekday.isSunday
+                          ? "text-[var(--ui-calendar-accent)]"
+                          : "text-[var(--ui-calendar-popup-weekday)]",
+                      )}
+                    >
+                      {weekday.label}
+                    </p>
+                  ))}
+                </div>
+
+                <div className="mt-3 grid grid-cols-7 gap-x-0 gap-y-2">
+                  {days.map((day) => {
+                    const inCurrentMonth = isSameMonth(day, pickerMonth);
+                    const selected = isSameDay(day, selectedDate);
+                    const isSunday = inCurrentMonth && day.getDay() === 0;
+
+                    return (
+                      <motion.button
+                        key={format(day, "yyyy-MM-dd")}
+                        type="button"
+                        onClick={() => handleSelectDate(day)}
+                        className={cn(
+                          "mx-auto flex h-9 items-center justify-center rounded-full text-[17px] leading-none transition-colors",
+                          selected
+                            ? "size-9 bg-[#474954] text-white hover:bg-[#3e4049]"
+                            : isSunday
+                              ? "size-9 bg-[var(--ui-calendar-accent)] text-white hover:bg-[var(--ui-calendar-accent-hover)]"
+                              : inCurrentMonth
+                                ? "size-9 bg-[var(--ui-calendar-neutral-bg)] text-white hover:bg-[var(--ui-calendar-neutral-hover)]"
+                                : "size-9 bg-[var(--ui-calendar-outside-bg)] text-[var(--ui-calendar-outside-text)]",
+                        )}
+                        aria-label={`Select ${format(day, "MMMM d, yyyy")}`}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {format(day, "d")}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </PopoverContent>

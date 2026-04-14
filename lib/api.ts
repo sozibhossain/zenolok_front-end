@@ -98,6 +98,23 @@ export interface EventTodo {
   isCompleted: boolean;
   isShared: boolean;
   createdBy: string;
+  participants?: string[];
+  subnotes?: EventTodoSubnote[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventTodoSubnote {
+  _id: string;
+  text: string;
+  createdBy:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        username?: string;
+        avatar?: AvatarData;
+      };
   createdAt: string;
   updatedAt: string;
 }
@@ -386,6 +403,14 @@ export const eventTodoApi = {
   update: (id: string, payload: Partial<Pick<EventTodo, "text" | "isCompleted">>) =>
     unwrap<EventTodo>(apiClient.patch(`/event-todos/${id}`, payload)),
   delete: (eventId: string, id: string) => unwrap<null>(apiClient.delete(`/event-todos/${eventId}/todo/${id}`)),
+  addSubnote: (id: string, payload: { text: string }) =>
+    unwrap<EventTodoSubnote[]>(apiClient.post(`/event-todos/${id}/subnotes`, payload)),
+  getSubnotes: (id: string) =>
+    unwrap<EventTodoSubnote[]>(apiClient.get(`/event-todos/${id}/subnotes`)),
+  updateSubnote: (id: string, subnoteId: string, payload: { text: string }) =>
+    unwrap<EventTodoSubnote[]>(apiClient.patch(`/event-todos/${id}/subnotes/${subnoteId}`, payload)),
+  deleteSubnote: (id: string, subnoteId: string) =>
+    unwrap<EventTodoSubnote[]>(apiClient.delete(`/event-todos/${id}/subnotes/${subnoteId}`)),
 };
 
 export const jamApi = {

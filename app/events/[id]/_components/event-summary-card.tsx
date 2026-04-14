@@ -154,14 +154,6 @@ export function EventSummaryCard({
             </div>
 
             <div className="space-y-2">
-              <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface-1)] px-3 py-3">
-                <p className="flex items-center gap-2 text-[14px] text-[var(--text-default)]">
-                  <Locate className="size-4 shrink-0 text-[var(--text-muted)]" />
-                  <span className="truncate">
-                    {event.location || "No location"}
-                  </span>
-                </p>
-              </div>
               <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:min-w-[220px] xl:flex-col xl:items-end xl:justify-start">
                 <div className="flex items-center gap-2 xl:justify-end">
                   <button
@@ -171,13 +163,15 @@ export function EventSummaryCard({
                   >
                     <Bell className="size-4" />
                   </button>
-                  <Badge
-                    variant="neutral"
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 !text-[13px] font-medium text-[var(--text-strong)]"
-                  >
-                    {event.isAllDay ? "All day" : "Scheduled"}
-                  </Badge>
                 </div>
+              </div>
+              <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface-1)] px-3 py-3">
+                <p className="flex items-center gap-2 text-[14px] text-[var(--text-default)]">
+                  <Locate className="size-4 shrink-0 text-[var(--text-muted)]" />
+                  <span className="truncate">
+                    {event.location || "No location"}
+                  </span>
+                </p>
               </div>
             </div>
           </div>

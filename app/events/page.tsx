@@ -621,7 +621,7 @@ export default function EventsPage() {
           <SectionLoading rows={6} />
         ) : paged.items.length ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-1 lg:grid-cols-2">
+            <div className="space-y-3">
               {paged.items.map((event) => {
                 const messageCount =
                   unreadMessageCountByEventId[event._id] ?? 0;

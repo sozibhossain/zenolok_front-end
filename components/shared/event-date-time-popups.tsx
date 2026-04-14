@@ -548,16 +548,7 @@ export function EventDateRangePopup({
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.22 }}
                 >
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={yearSearch}
-                    onChange={(event) =>
-                      setYearSearch(event.target.value.replace(/\D/g, "").slice(0, 4))
-                    }
-                    placeholder="Search year (e.g. 2026)"
-                    className="h-9 w-full rounded-xl border border-[var(--ui-calendar-popup-input-border)] bg-[var(--ui-calendar-popup-input-bg)] px-3 text-[14px] text-[var(--ui-calendar-popup-strong)] placeholder:text-[var(--ui-calendar-popup-subtle)] focus:border-[var(--ui-calendar-popup-input-border)] focus:outline-none"
-                  />
+                
                   <div ref={yearsScrollRef} className="max-h-[312px] space-y-4 overflow-y-auto pr-1">
                     {filteredYears.map((year) => (
                       <div key={year} ref={year === scrollTargetYear ? activeYearRef : null}>
