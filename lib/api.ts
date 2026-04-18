@@ -446,6 +446,10 @@ export const notificationApi = {
     unwrap<{ notification: NotificationData; counts: NotificationCounts }>(
       apiClient.patch(`/notifications/${id}/read`),
     ),
+  markAsUnread: (id: string) =>
+    unwrap<{ notification: NotificationData; counts: NotificationCounts }>(
+      apiClient.patch(`/notifications/${id}/unread`),
+    ),
   markEventMessagesRead: (eventId: string) =>
     unwrap<{ modifiedCount: number; counts: NotificationCounts }>(
       apiClient.patch(`/notifications/messages/event/${eventId}/read`),

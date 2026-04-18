@@ -23,7 +23,6 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
-  ListTodo,
   Search,
   Settings,
 } from "lucide-react";
@@ -360,9 +359,11 @@ export function AppTopNav() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [activeNotificationTab, setActiveNotificationTab] = useState<
-    "messages" | "system" | "all" | "unread"
+  const [activeNotificationCategory, setActiveNotificationCategory] = useState<
+    "messages" | "system" | "all"
   >("all");
+  const [showUnreadNotificationsOnly, setShowUnreadNotificationsOnly] =
+    useState(false);
   const { goToToday, goToPreviousMonth, goToNextMonth, preferences } =
     useAppState();
   const isHomePage =
@@ -375,6 +376,12 @@ export function AppTopNav() {
   });
   const markAsReadMutation = useMutation({
     mutationFn: notificationApi.markAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+  });
+  const markAsUnreadMutation = useMutation({
+    mutationFn: notificationApi.markAsUnread,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
     },
@@ -394,15 +401,15 @@ export function AppTopNav() {
   const systemNotifications = notifications.filter(
     (item) => !isMessageNotification(item),
   );
-  const unreadNotifications = notifications.filter((item) => !item.read);
-  const displayedNotifications =
-    activeNotificationTab === "messages"
+  const categoryNotifications =
+    activeNotificationCategory === "messages"
       ? messageNotifications
-      : activeNotificationTab === "system"
-      ? systemNotifications
-      : activeNotificationTab === "unread"
-      ? unreadNotifications
-      : notifications;
+      : activeNotificationCategory === "system"
+        ? systemNotifications
+        : notifications;
+  const displayedNotifications = showUnreadNotificationsOnly
+    ? categoryNotifications.filter((item) => !item.read)
+    : categoryNotifications;
   const unreadByTab = {
     messages:
       serverCounts?.messages.unread ??
@@ -411,8 +418,18 @@ export function AppTopNav() {
       serverCounts?.system.unread ??
       systemNotifications.filter((item) => !item.read).length,
     all: serverCounts?.all.unread ?? unreadCount,
-    unread: serverCounts?.all.unread ?? unreadCount,
   };
+  const emptyNotificationLabel = showUnreadNotificationsOnly
+    ? activeNotificationCategory === "messages"
+      ? "No unread message notifications"
+      : activeNotificationCategory === "system"
+        ? "No unread system notifications"
+        : "No unread notifications"
+    : activeNotificationCategory === "messages"
+      ? "No message notifications yet"
+      : activeNotificationCategory === "system"
+        ? "No system notifications yet"
+        : "No notifications yet";
 
   return (
     <motion.header
@@ -533,34 +550,50 @@ export function AppTopNav() {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="app-notification-popover w-[310px] border p-3"
+              className="app-notification-popover w-[332px] rounded-[20px] border px-4 py-3"
             >
-              <div className="mb-2 flex items-center justify-center gap-6">
-                {[
-                  { key: "messages" as const, label: "Messages" },
-                  { key: "system" as const, label: "System" },
-                  { key: "all" as const, label: "All" },
-                  { key: "unread" as const, label: "Unread" },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveNotificationTab(tab.key)}
-                    className={cn(
-                      "relative text-[15px] leading-none transition",
-                      activeNotificationTab === tab.key
-                        ? "text-[var(--text-strong)]"
-                        : "text-[var(--text-muted)]",
-                    )}
-                  >
-                    {tab.label}
-                    {unreadByTab[tab.key] ? (
-                      <span className="absolute -top-3 -right-4 inline-flex min-w-[12px] min-h-[12px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[9px] font-medium leading-none text-white">
-                        {unreadByTab[tab.key] > 99 ? "99+" : unreadByTab[tab.key]}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="flex items-center gap-5">
+                  {[
+                    { key: "messages" as const, label: "Messages" },
+                    { key: "system" as const, label: "System" },
+                    { key: "all" as const, label: "All" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveNotificationCategory(tab.key)}
+                      className={cn(
+                        "relative text-[14px] leading-none transition",
+                        activeNotificationCategory === tab.key
+                          ? "font-medium text-[var(--text-strong)]"
+                          : "text-[var(--text-muted)]",
+                      )}
+                    >
+                      {tab.label}
+                      {unreadByTab[tab.key] ? (
+                        <span className="absolute -top-2.5 -right-4 inline-flex min-w-[12px] min-h-[12px] items-center justify-center rounded-full bg-[#FF3B30] px-1 text-[9px] font-medium leading-none text-white">
+                          {unreadByTab[tab.key] > 99 ? "99+" : unreadByTab[tab.key]}
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowUnreadNotificationsOnly((current) => !current)
+                  }
+                  className={cn(
+                    "relative shrink-0 text-center text-[16px] leading-[16px] font-normal transition",
+                    showUnreadNotificationsOnly
+                      ? "text-[#32ADE6]"
+                      : "text-[#97C6DC]",
+                  )}
+                >
+                  Unread
+                </button>
               </div>
               <div className="mb-2 flex justify-end">
                 <button
@@ -573,13 +606,13 @@ export function AppTopNav() {
                 </button>
               </div>
 
-              <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
                 {notificationsQuery.isLoading ? (
                   <>
                     {[40, 40, 66].map((height, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <span className="mt-2 size-4 rounded-full border border-[var(--border)] bg-[var(--surface-3)]" />
-                        <Skeleton className="flex-1 rounded-xl" style={{ height }} />
+                      <div key={index} className="flex items-start gap-3">
+                        <span className="mt-3 size-4 rounded-full border border-[#D8DEE9] bg-transparent" />
+                        <Skeleton className="h-[62px] flex-1 rounded-[16px]" style={{ height }} />
                       </div>
                     ))}
                   </>
@@ -593,49 +626,65 @@ export function AppTopNav() {
                     const timeLabel = Number.isNaN(createdAt.getTime())
                       ? ""
                       : formatDistanceToNow(createdAt, { addSuffix: true });
+                    const isTogglePending =
+                      markAsReadMutation.isPending ||
+                      markAsUnreadMutation.isPending;
 
                     return (
-                      <motion.button
+                      <motion.div
                         key={notification._id}
-                        type="button"
-                        className="group flex w-full items-start gap-2 rounded-xl p-1 text-left"
-                        onClick={() => {
-                          if (!notification.read) {
-                            markAsReadMutation.mutate(notification._id);
-                          }
-                        }}
+                        className="group flex w-full items-start gap-3 rounded-[18px] p-0.5 text-left"
                         whileHover={{ x: 2 }}
-                        whileTap={{ scale: 0.99 }}
+                        whileTap={{ scale: 0.995 }}
                       >
-                        <span
-                          className={cn(
-                            "mt-2 size-4 rounded-full border",
+                        <button
+                          type="button"
+                          aria-label={
                             notification.read
-                              ? "border-[var(--border)] bg-transparent"
-                              : "border-[var(--border)] bg-[var(--surface-3)]",
-                          )}
-                        />
+                              ? "Mark notification as unread"
+                              : "Mark notification as read"
+                          }
+                          className="mt-3 rounded-full disabled:cursor-not-allowed"
+                          disabled={isTogglePending}
+                          onClick={() => {
+                            if (notification.read) {
+                              markAsUnreadMutation.mutate(notification._id);
+                              return;
+                            }
+
+                            markAsReadMutation.mutate(notification._id);
+                          }}
+                        >
+                          <span
+                            className={cn(
+                              "block size-4 shrink-0 rounded-full border transition",
+                              notification.read
+                                ? "border-[#E1E6EE] bg-[#E3E8F2]"
+                                : "border-[#D8DEE9] bg-transparent",
+                            )}
+                          />
+                        </button>
                         <div
                           className={cn(
-                            "flex-1 rounded-xl border px-3 py-2 transition",
+                            "min-h-[62px] flex-1 rounded-[16px] border px-4 py-3 transition",
                             notification.read
-                              ? "border-[var(--border)] bg-transparent "
-                              : "border-[var(--border)] bg-[var(--surface-2)] ",
+                              ? "border-[#EEF2F7] bg-[#FAFBFD]"
+                              : "border-[#E3E8F1] bg-[#F8FAFD]",
                           )}
                         >
                           <p className="text-[12px] leading-[1.35] text-[var(--text-default)]">
                             {notification.title}
                           </p>
                           {timeLabel ? (
-                            <p className="mt-1 text-[10px] text-[var(--text-muted)]">{timeLabel}</p>
+                            <p className="mt-1.5 text-[10px] text-[var(--text-muted)]">{timeLabel}</p>
                           ) : null}
                         </div>
-                      </motion.button>
+                      </motion.div>
                     );
                   })
                 ) : (
                   <p className="py-6 text-center text-[13px] text-[#7D8597]">
-                    No notifications yet
+                    {emptyNotificationLabel}
                   </p>
                 )}
               </div>
