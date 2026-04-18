@@ -80,6 +80,7 @@ export interface TodoItem {
   categoryId: string | TodoCategory;
   text: string;
   isCompleted: boolean;
+  sortOrder?: number;
   createdBy: string;
   scheduledDate?: string | null;
   scheduledTime?: string | null;
@@ -97,6 +98,7 @@ export interface EventTodo {
   text: string;
   isCompleted: boolean;
   isShared: boolean;
+  sortOrder?: number;
   createdBy: string;
   participants?: string[];
   subnotes?: EventTodoSubnote[];
@@ -131,6 +133,7 @@ export interface EventData {
   participants: Array<string | UserProfile>;
   reminder?: string;
   recurrence: "once" | "daily" | "weekly" | "monthly" | "yearly";
+  notes?: string;
   todos?: EventTodo[];
   createdAt: string;
   updatedAt: string;
@@ -342,6 +345,7 @@ export const todoItemApi = {
     repeat?: TodoItem["repeat"] | null;
     alarm?: string | null;
     alarmPreset?: AlarmPresetKey;
+    sortOrder?: number;
   }) => unwrap<TodoItem>(apiClient.post("/todo-items", payload)),
   getByCategory: (categoryId: string) => unwrap<TodoItem[]>(apiClient.get(`/todo-items/category/${categoryId}`)),
   getScheduled: (params: {
@@ -363,6 +367,7 @@ export const todoItemApi = {
       alarm?: string | null;
       alarmPreset?: AlarmPresetKey;
       repeat?: TodoItem["repeat"] | null;
+      sortOrder?: number;
     }
   ) => unwrap<TodoItem>(apiClient.patch(`/todo-items/${id}`, payload)),
   delete: (id: string) => unwrap<null>(apiClient.delete(`/todo-items/${id}`)),
@@ -378,7 +383,8 @@ export const eventApi = {
     location?: string;
     reminder?: string;
     recurrence?: EventData["recurrence"];
-    todos?: Array<{ text: string; isShared?: boolean }>;
+    notes?: string;
+    todos?: Array<{ text: string; isShared?: boolean; sortOrder?: number }>;
   }) => unwrap<{ event: EventData; todos: EventTodo[] }>(apiClient.post("/events", payload)),
   getAll: (params: {
     startDate?: string;
@@ -391,9 +397,11 @@ export const eventApi = {
     id: string,
     payload: Partial<Omit<EventData, "_id" | "createdAt" | "updatedAt" | "brick">> & {
       brick?: string;
-      todos?: Array<{ _id?: string; text: string; isShared?: boolean }>;
+      todos?: Array<{ _id?: string; text: string; isShared?: boolean; sortOrder?: number }>;
     }
   ) => unwrap<EventData>(apiClient.patch(`/events/${id}`, payload)),
+  updateNotes: (id: string, payload: { notes: string }) =>
+    unwrap<EventData>(apiClient.patch(`/events/${id}/notes`, payload)),
   delete: (id: string) => unwrap<null>(apiClient.delete(`/events/${id}`)),
 };
 
@@ -401,7 +409,7 @@ export const eventTodoApi = {
   create: (payload: { text: string; eventId: string; isShared?: boolean }) =>
     unwrap<EventTodo>(apiClient.post("/event-todos", payload)),
   getByEvent: (eventId: string) => unwrap<EventTodo[]>(apiClient.get(`/event-todos/event/${eventId}`)),
-  update: (id: string, payload: Partial<Pick<EventTodo, "text" | "isCompleted">>) =>
+  update: (id: string, payload: Partial<Pick<EventTodo, "text" | "isCompleted" | "sortOrder">>) =>
     unwrap<EventTodo>(apiClient.patch(`/event-todos/${id}`, payload)),
   delete: (eventId: string, id: string) => unwrap<null>(apiClient.delete(`/event-todos/${eventId}/todo/${id}`)),
   addSubnote: (id: string, payload: { text: string }) =>

@@ -311,9 +311,9 @@ export default function EventMessagesPage() {
         <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 py-2">
                 <span className="block h-6 w-1 rounded-sm bg-[var(--ui-btn-secondary-text)]" />
-                <p className="truncate text-[34px] font-medium leading-tight text-[var(--text-strong)]">
+                <p className="truncate text-[24px] font-medium leading-tight text-[var(--text-strong)]">
                   {event.title}
                 </p>
               </div>

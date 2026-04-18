@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -18,13 +18,14 @@ import {
   eventApi,
   eventTodoApi,
   jamApi,
-  notificationApi,
   userApi,
   type EventData,
   type EventTodo,
   type JamMessage,
   type UserProfile,
 } from "@/lib/api";
+import { useEventMessagesSocket } from "@/hooks/use-event-messages-socket";
+import { appendMessageIfMissing } from "@/lib/jam-messages";
 import { queryKeys } from "@/lib/query-keys";
 import { AllDayTabToggle } from "@/components/shared/all-day-tab-toggle";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -38,11 +39,13 @@ import {
   EventSingleField,
 } from "@/components/shared/event-range-field";
 import { SectionLoading } from "@/components/shared/section-loading";
-import { EventLibraryPanel } from "./_components/event-library-panel";
 import {
   EventSummaryCard,
 } from "./_components/event-summary-card";
+import { EventLibraryPanel } from "./_components/event-library-panel";
+import { EventNotesPanel } from "./_components/event-notes-panel";
 import { JamPreviewPanel } from "./_components/jam-preview-panel";
+import { isLinkMessage } from "./_components/event-detail-helpers";
 import { TodoSection } from "./_components/todo-section";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,9 +57,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useEventMessagesSocket } from "@/hooks/use-event-messages-socket";
-import { appendMessageIfMissing } from "@/lib/jam-messages";
-
 function mapParticipants(participants: EventData["participants"]): UserProfile[] {
   const mapped = participants
     .map((participant) =>
@@ -91,10 +91,7 @@ function isLinkText(value: string) {
 }
 
 function isMediaFile(file: File) {
-  if (
-    file.type.startsWith("image/") ||
-    file.type.startsWith("video/")
-  ) {
+  if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
     return true;
   }
 
@@ -125,13 +122,18 @@ export default function EventDetailsPage() {
   const { preferences } = useAppState();
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
   const id = params.id;
 
   const [newTodoText, setNewTodoText] = useState("");
+  const [notesText, setNotesText] = useState("");
   const [messageText, setMessageText] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [jamView, setJamView] = useState<"jam" | "media">("jam");
+  const [libraryTab, setLibraryTab] = useState<"media" | "files" | "link">(
+    "media",
+  );
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>(
     [],
@@ -148,14 +150,11 @@ export default function EventDetailsPage() {
   const [editDatePopupOpen, setEditDatePopupOpen] = useState(false);
   const [editTimePopupOpen, setEditTimePopupOpen] = useState(false);
   const [editIsAllDay, setEditIsAllDay] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [jamView, setJamView] = useState<"jam" | "media">("jam");
-  const [libraryTab, setLibraryTab] = useState<"media" | "files" | "link">(
-    "media",
+  const notesSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
   );
-  const messagesPanelRef = React.useRef<HTMLDivElement | null>(null);
-  const hasHandledFocusMessagesRef = React.useRef(false);
-  const hasMarkedMessageNotificationsReadRef = React.useRef(false);
+
+  useEventMessagesSocket(id);
 
   const eventQuery = useQuery({
     queryKey: queryKeys.event(id),
@@ -199,24 +198,10 @@ export default function EventDetailsPage() {
     queryKey: queryKeys.profile,
     queryFn: userApi.getProfile,
   });
-  const markEventMessagesReadMutation = useMutation({
-    mutationFn: () => notificationApi.markEventMessagesRead(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
-    },
-  });
   const editHasDateRange = Boolean(editStartDate && editEndDate);
   const editIsSingleDayEvent = Boolean(
     editStartDate && editEndDate && editStartDate === editEndDate,
   );
-  const shouldFocusMessages = searchParams.get("focus") === "messages";
-
-  React.useEffect(() => {
-    hasHandledFocusMessagesRef.current = false;
-    hasMarkedMessageNotificationsReadRef.current = false;
-  }, [id]);
-
-  useEventMessagesSocket(id);
 
   const refreshEverything = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.event(id) });
@@ -230,7 +215,6 @@ export default function EventDetailsPage() {
     queryClient.invalidateQueries({
       queryKey: queryKeys.events({ filter: "all" }),
     });
-    queryClient.invalidateQueries({ queryKey: queryKeys.jamMessages(id) });
   };
 
   const deleteEventMutation = useMutation({
@@ -253,6 +237,14 @@ export default function EventDetailsPage() {
     },
     onError: (error: Error) =>
       toast.error(error.message || "Failed to update event"),
+  });
+  const saveNotesMutation = useMutation({
+    mutationFn: (payload: { notes: string }) => eventApi.updateNotes(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.event(id) });
+    },
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to save notes"),
   });
 
   const addTodoMutation = useMutation({
@@ -294,43 +286,6 @@ export default function EventDetailsPage() {
     onError: (error: Error) =>
       toast.error(error.message || "Failed to delete todo"),
   });
-
-  const addTodoSubnoteMutation = useMutation({
-    mutationFn: ({ todoId, text }: { todoId: string; text: string }) => {
-      if (!text.trim()) {
-        throw new Error("Note text is required");
-      }
-
-      return eventTodoApi.addSubnote(todoId, { text: text.trim() });
-    },
-    onSuccess: refreshEverything,
-    onError: (error: Error) =>
-      toast.error(error.message || "Failed to add note"),
-  });
-
-  const updateTodoSubnoteMutation = useMutation({
-    mutationFn: ({
-      todoId,
-      subnoteId,
-      text,
-    }: {
-      todoId: string;
-      subnoteId: string;
-      text: string;
-    }) => {
-      if (!text.trim()) {
-        throw new Error("Note text is required");
-      }
-
-      return eventTodoApi.updateSubnote(todoId, subnoteId, {
-        text: text.trim(),
-      });
-    },
-    onSuccess: refreshEverything,
-    onError: (error: Error) =>
-      toast.error(error.message || "Failed to update note"),
-  });
-
   const sendMessageMutation = useMutation({
     mutationFn: () => {
       if (!messageText.trim() && !selectedFile) {
@@ -371,6 +326,19 @@ export default function EventDetailsPage() {
       toast.error(error.message || "Failed to send message"),
   });
 
+  const reorderTodosMutation = useMutation({
+    mutationFn: async (todoIds: string[]) => {
+      await Promise.all(
+        todoIds.map((todoId, index) =>
+          eventTodoApi.update(todoId, { sortOrder: index }),
+        ),
+      );
+    },
+    onSuccess: refreshEverything,
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to reorder todos"),
+  });
+
   const event = eventQuery.data;
   const participants = useMemo(
     () => mapParticipants(event?.participants || []),
@@ -407,6 +375,10 @@ export default function EventDetailsPage() {
   }, [editDialogOpen, event]);
 
   React.useEffect(() => {
+    setNotesText(event?.notes || "");
+  }, [event?.notes, event?._id]);
+
+  React.useEffect(() => {
     if (!editHasDateRange) {
       setEditTimePopupOpen(false);
     }
@@ -427,61 +399,25 @@ export default function EventDetailsPage() {
   }, [editIsAllDay, editIsSingleDayEvent, editStartTime]);
 
   React.useEffect(() => {
-    if (
-      !shouldFocusMessages ||
-      !event ||
-      !messagesPanelRef.current ||
-      hasHandledFocusMessagesRef.current
-    ) {
+    if (!event || notesText === (event.notes || "")) {
       return;
     }
 
-    hasHandledFocusMessagesRef.current = true;
-
-    const timeoutId = window.setTimeout(() => {
-      messagesPanelRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 160);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [event, shouldFocusMessages]);
-
-  React.useEffect(() => {
-    if (!id || !messagesPanelRef.current) {
-      return;
+    if (notesSaveTimerRef.current) {
+      clearTimeout(notesSaveTimerRef.current);
     }
 
-    const panelNode = messagesPanelRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
+    notesSaveTimerRef.current = setTimeout(() => {
+      saveNotesMutation.mutate({ notes: notesText });
+      notesSaveTimerRef.current = null;
+    }, 700);
 
-        if (
-          !entry?.isIntersecting ||
-          entry.intersectionRatio < 0.55 ||
-          hasMarkedMessageNotificationsReadRef.current
-        ) {
-          return;
-        }
-
-        hasMarkedMessageNotificationsReadRef.current = true;
-        markEventMessagesReadMutation.mutate(undefined, {
-          onError: () => {
-            hasMarkedMessageNotificationsReadRef.current = false;
-          },
-        });
-      },
-      {
-        threshold: [0.55],
-      },
-    );
-
-    observer.observe(panelNode);
-
-    return () => observer.disconnect();
-  }, [id, markEventMessagesReadMutation]);
+    return () => {
+      if (notesSaveTimerRef.current) {
+        clearTimeout(notesSaveTimerRef.current);
+      }
+    };
+  }, [event, notesText, saveNotesMutation]);
 
   if (eventQuery.isLoading) {
     return <SectionLoading rows={6} />;
@@ -496,10 +432,10 @@ export default function EventDetailsPage() {
     );
   }
 
-  const messages = messagesQuery.data || [];
   const privateTodos = (eventTodosQuery.data || []).filter(
     (todo) => !todo.isShared,
   );
+  const messages = messagesQuery.data || [];
   const mediaMessages = messages.filter(
     (message) => message.messageType === "media" || Boolean(message.mediaUrl),
   );
@@ -510,10 +446,7 @@ export default function EventDetailsPage() {
         Boolean(message.fileName) &&
         message.messageType !== "link"),
   );
-  const linkMessages = messages.filter(
-    (message) =>
-      message.messageType === "link" || isLinkText(message.text || ""),
-  );
+  const linkMessages = messages.filter((message) => isLinkMessage(message));
   const jamPreviewMessages = messages.slice(-2);
   const allUsers = usersQuery.data?.users || [];
   const isEventOwner = viewerId === event.createdBy;
@@ -623,6 +556,19 @@ export default function EventDetailsPage() {
         },
       },
     );
+  };
+
+  const flushNotesSave = () => {
+    if (!event || notesText === (event.notes || "")) {
+      return;
+    }
+
+    if (notesSaveTimerRef.current) {
+      clearTimeout(notesSaveTimerRef.current);
+      notesSaveTimerRef.current = null;
+    }
+
+    saveNotesMutation.mutate({ notes: notesText });
   };
 
   return (
@@ -843,101 +789,64 @@ export default function EventDetailsPage() {
           isParticipantsSaving={updateEventMutation.isPending}
         />
 
-        {jamView === "jam" ? (
-          <div className="mt-3 space-y-3">
-            <TodoSection
-              todos={privateTodos}
-              title="New todo"
-              inputValue={newTodoText}
-              onInputChange={setNewTodoText}
-              onAdd={() => addTodoMutation.mutate({ text: newTodoText })}
-              onToggle={(todo) =>
-                updateTodoMutation.mutate({
-                  todoId: todo._id,
-                  payload: { isCompleted: !todo.isCompleted },
-                })
-              }
-              onDelete={(todoId) => deleteTodoMutation.mutate(todoId)}
-              onAddSubnote={async (todoId, text) => {
-                await addTodoSubnoteMutation.mutateAsync({ todoId, text });
-              }}
-              onUpdateTodo={async (todoId, text) => {
-                await updateTodoMutation.mutateAsync({
-                  todoId,
-                  payload: { text },
-                });
-              }}
-              onUpdateSubnote={async (todoId, subnoteId, text) => {
-                await updateTodoSubnoteMutation.mutateAsync({
-                  todoId,
-                  subnoteId,
-                  text,
-                });
-              }}
-            />
-            {/* <TodoSection
-              todos={sharedTodos}
-              title="New shared todo"
-              inputValue={newSharedTodoText}
-              onInputChange={setNewSharedTodoText}
-              onAdd={() => addTodoMutation.mutate({ text: newSharedTodoText, isShared: true })}
-              onToggle={(todo) =>
-                updateTodoMutation.mutate({
-                  todoId: todo._id,
-                  payload: { isCompleted: !todo.isCompleted },
-                })
-              }
-              onDelete={(todoId) => deleteTodoMutation.mutate(todoId)}
-            /> */}
-          </div>
-        ) : null}
+        <div className="mt-3 space-y-3">
+          <TodoSection
+            todos={privateTodos}
+            title="New todo"
+            inputValue={newTodoText}
+            onInputChange={setNewTodoText}
+            onAdd={() => addTodoMutation.mutate({ text: newTodoText })}
+            onToggle={(todo) =>
+              updateTodoMutation.mutate({
+                todoId: todo._id,
+                payload: { isCompleted: !todo.isCompleted },
+              })
+            }
+            onDelete={(todoId) => deleteTodoMutation.mutate(todoId)}
+            onReorder={(todoIds) => reorderTodosMutation.mutateAsync(todoIds)}
+            accentColor={event.brick?.color || "#7DC97E"}
+          />
 
-        <div ref={messagesPanelRef}>
-          <Card className="mt-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-2)] p-3.5 shadow-none">
-          {jamView === "media" ? (
-            <EventLibraryPanel
-              libraryTab={libraryTab}
-              onLibraryTabChange={setLibraryTab}
-              mediaMessages={mediaMessages}
-              fileMessages={fileMessages}
-              linkMessages={linkMessages}
-              use24Hour={preferences.use24Hour}
-              onBackToJam={() => setJamView("jam")}
-            />
-          ) : (
-            <JamPreviewPanel
-              viewerId={viewerId}
-              messages={jamPreviewMessages}
-              isLoading={messagesQuery.isLoading}
-              use24Hour={preferences.use24Hour}
-              messageText={messageText}
-              onMessageChange={setMessageText}
-              onFileChange={setSelectedFile}
-              selectedFileName={selectedFile?.name}
-              onSend={() => sendMessageMutation.mutate()}
-              isSending={sendMessageMutation.isPending}
-              onOpenMessagesPage={() => router.push(`/events/${id}/messages`)}
-              onOpenLibrary={() => {
-                setLibraryTab("media");
-                setJamView("media");
-              }}
-            />
-          )}
+          <EventNotesPanel
+            value={notesText}
+            onChange={setNotesText}
+            onBlur={flushNotesSave}
+            isSaving={saveNotesMutation.isPending}
+          />
+
+          <Card className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-2)] p-3.5 shadow-none">
+            {jamView === "media" ? (
+              <EventLibraryPanel
+                libraryTab={libraryTab}
+                onLibraryTabChange={setLibraryTab}
+                mediaMessages={mediaMessages}
+                fileMessages={fileMessages}
+                linkMessages={linkMessages}
+                use24Hour={preferences.use24Hour}
+                onBackToJam={() => setJamView("jam")}
+              />
+            ) : (
+              <JamPreviewPanel
+                viewerId={viewerId}
+                messages={jamPreviewMessages}
+                isLoading={messagesQuery.isLoading}
+                use24Hour={preferences.use24Hour}
+                messageText={messageText}
+                onMessageChange={setMessageText}
+                onFileChange={setSelectedFile}
+                selectedFileName={selectedFile?.name}
+                onSend={() => sendMessageMutation.mutate()}
+                isSending={sendMessageMutation.isPending}
+                onOpenMessagesPage={() => router.push(`/events/${id}/messages`)}
+                onOpenLibrary={() => {
+                  setLibraryTab("media");
+                  setJamView("media");
+                }}
+              />
+            )}
           </Card>
         </div>
       </section>
-
-      {jamView !== "jam" ? (
-        <div className="flex items-center justify-center">
-          <Button
-            variant="ghost"
-            className="rounded-full text-[var(--text-muted)]"
-            onClick={() => setJamView("jam")}
-          >
-            <ArrowLeft className="mr-1 size-4" /> Back to JAM
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

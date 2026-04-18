@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, Bell, CalendarDays, Clock3, MapPin, RefreshCw } from "lucide-react";
+import { ArrowUpDown, Bell, CalendarDays, Clock3, MapPin, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 
 import type { EventData, UserProfile } from "@/lib/api";
@@ -71,6 +71,11 @@ export function EventSummaryCard({
     !event.isAllDay && hasValidSchedule
       ? formatTimeByPreference(endsAt, use24Hour)
       : "";
+  const hasAlarm = Boolean(event.reminder);
+  const hasRepeat = event.recurrence !== "once";
+  const todoCount = event.todos?.length ?? 0;
+  const incompleteTodoCount =
+    event.todos?.filter((todo) => !todo.isCompleted).length ?? 0;
 
   return (
     <div className="event-details-card rounded-[18px] border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
@@ -213,19 +218,34 @@ export function EventSummaryCard({
               )}
 
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  className="flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
-                  aria-label="Notification"
-                >
-                  <Bell className="size-4" />
-                </button>
-                {spansMultipleDays ? (
+                {hasAlarm ? (
+                  <button
+                    type="button"
+                    className="flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
+                    aria-label="Notification"
+                  >
+                    <Bell className="size-4" />
+                  </button>
+                ) : null}
+                {hasRepeat ? (
                   <div
                     className="flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
                     aria-label="Repeats across dates"
                   >
                     <RefreshCw className="size-4" />
+                  </div>
+                ) : null}
+                {todoCount > 0 ? (
+                  <div
+                    className="relative flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
+                    aria-label="Todo progress"
+                  >
+                    <SlidersHorizontal className="size-4" />
+                    {incompleteTodoCount > 0 ? (
+                      <span className="absolute -right-1 -top-2 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#FF4D42] px-0.5 text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
+                        {incompleteTodoCount}
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

@@ -88,6 +88,8 @@ type CalendarEvent = {
   brickName?: string;
   icon?: string;
   isAllDay: boolean;
+  reminder?: string;
+  recurrence: EventData["recurrence"];
   todos: Array<{
     id: string;
     text: string;
@@ -472,6 +474,8 @@ export default function HomePage() {
           brickName: event.brick?.name,
           icon: event.brick?.icon,
           isAllDay: event.isAllDay,
+          reminder: event.reminder ?? "none",
+          recurrence: event.recurrence ?? "once",
           todos: (event.todos || [])
             .filter((todo) => {
               if (!currentUserId) {
@@ -830,7 +834,9 @@ export default function HomePage() {
               const incompleteTodoCount = event.todos.filter(
                 (todo) => !todo.isCompleted,
               ).length;
-              const todoBadgeCount = incompleteTodoCount || event.todos.length;
+              const hasAlarm =
+                Boolean(event.reminder) && event.reminder !== "none";
+              const hasRepeat = event.recurrence !== "once";
               const messageCount = unreadMessageCountByEventId[event.id] ?? 0;
               const alertCount = unreadAlertCountByEventId[event.id] ?? 0;
               const typeLabel = event.spansMultipleDays
@@ -964,26 +970,29 @@ export default function HomePage() {
                           badgeCount={messageCount}
                           label={`${event.title} streak updates`}
                         />
-                      ) : event.isAllDay ? (
+                      ) : null}
+
+                      {hasRepeat ? (
                         <HomeSidebarActionIcon
                           icon={RefreshCw}
-                          label={`${event.title} all-day event`}
+                          label={`${event.title} recurrence`}
                         />
                       ) : null}
 
-                      {!event.spansMultipleDays && !event.isAllDay ? (
-                        <>
-                          <HomeSidebarActionIcon
-                            icon={Bell}
-                            badgeCount={alertCount}
-                            label={`${event.title} alerts`}
-                          />
-                          <HomeSidebarActionIcon
-                            icon={ListTodo}
-                            badgeCount={todoBadgeCount}
-                            label={`${event.title} tasks`}
-                          />
-                        </>
+                      {hasAlarm ? (
+                        <HomeSidebarActionIcon
+                          icon={Bell}
+                          badgeCount={alertCount}
+                          label={`${event.title} alerts`}
+                        />
+                      ) : null}
+
+                      {hasTodos ? (
+                        <HomeSidebarActionIcon
+                          icon={ListTodo}
+                          badgeCount={incompleteTodoCount}
+                          label={`${event.title} tasks`}
+                        />
                       ) : null}
 
                       {hasTodos ? (
