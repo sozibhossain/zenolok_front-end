@@ -10,8 +10,8 @@ import {
   formatMessageStamp,
   getDisplayNameFromMessage,
   getMessageAvatarUrl,
-  getMessageLabel,
 } from "./event-detail-helpers";
+import { JamMessageContent } from "./jam-message-content";
 import { MessageComposer } from "./message-composer";
 
 type JamPreviewPanelProps = {
@@ -68,15 +68,7 @@ function MessagePreviewItem({
               {formatMessageStamp(message.createdAt, use24Hour)}
             </p>
           ) : null}
-          <div
-            className={`max-w-[260px] rounded-[18px] border px-3 py-1.5 text-[12px] ${
-              isMe
-                ? "border-[color:color-mix(in_srgb,var(--ui-btn-secondary-text)_20%,var(--border)_80%)] bg-[var(--ui-btn-secondary-bg)] text-[var(--ui-btn-secondary-text)]"
-                : "border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-strong)]"
-            }`}
-          >
-            {getMessageLabel(message)}
-          </div>
+          <JamMessageContent message={message} isMe={isMe} />
           {!isMe ? (
             <p className="pb-0.5 text-[10px] text-[var(--text-muted)]">
               {formatMessageStamp(message.createdAt, use24Hour)}

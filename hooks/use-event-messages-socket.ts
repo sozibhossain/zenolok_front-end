@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { JamMessage } from "@/lib/api";
-import { appendMessageIfMissing } from "@/lib/jam-messages";
+import { appendMessageIfMissing, upsertMessage } from "@/lib/jam-messages";
 import { queryKeys } from "@/lib/query-keys";
 import { getSharedSocket } from "@/lib/socket";
 
@@ -47,9 +47,21 @@ export function useEventMessagesSocket(eventId: string | undefined) {
       );
     };
 
+    const handleUpdateMessage = (message: JamMessage) => {
+      if (message.eventId !== eventId) {
+        return;
+      }
+
+      queryClient.setQueryData<JamMessage[]>(
+        queryKeys.jamMessages(eventId),
+        (previous = []) => upsertMessage(previous, message),
+      );
+    };
+
     socket.on("connect", joinEventRoom);
     socket.on("newMessage", handleNewMessage);
     socket.on("deleteMessage", handleDeleteMessage);
+    socket.on("updateMessage", handleUpdateMessage);
 
     if (socket.connected) {
       joinEventRoom();
@@ -59,6 +71,7 @@ export function useEventMessagesSocket(eventId: string | undefined) {
       socket.off("connect", joinEventRoom);
       socket.off("newMessage", handleNewMessage);
       socket.off("deleteMessage", handleDeleteMessage);
+      socket.off("updateMessage", handleUpdateMessage);
       leaveEventRoom();
     };
   }, [eventId, queryClient]);

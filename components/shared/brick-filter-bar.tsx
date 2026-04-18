@@ -32,10 +32,10 @@ export function BrickFilterBar({
   });
   const suppressClickRef = React.useRef(false);
   const [isDragging, setIsDragging] = React.useState(false);
+  const hasBricks = bricks.length > 0;
 
   const isAllSelected =
-    bricks.length > 0 &&
-    bricks.every((brick) => selectedBrickIds.includes(brick._id));
+    hasBricks && bricks.every((brick) => selectedBrickIds.includes(brick._id));
 
   const handleMouseDown = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -203,12 +203,27 @@ export function BrickFilterBar({
             className="shrink-0"
             onClick={onCreateBrick}
             aria-label="Create brick"
-            whileHover={{ y: -1, rotate: 45 }}
+            whileHover={hasBricks ? { y: -1, rotate: 45 } : { y: -1 }}
             whileTap={{ scale: 0.94 }}
           >
-            <span className="flex size-8 items-center justify-center rounded-full border border-[var(--ui-badge-neutral-border)] bg-[var(--ui-badge-neutral-bg)] text-[var(--ui-badge-neutral-text)]">
-              <Plus className="size-4" />
-            </span>
+            {hasBricks ? (
+              <span className="flex size-8 items-center justify-center rounded-full border border-[var(--ui-badge-neutral-border)] bg-[var(--ui-badge-neutral-bg)] text-[var(--ui-badge-neutral-text)]">
+                <Plus className="size-4" />
+              </span>
+            ) : (
+              <Badge
+                variant="neutral"
+                className="rounded-full px-4 py-1 !text-[22px] !font-semibold shadow-sm transition"
+                style={{
+                  backgroundColor: "var(--ui-badge-neutral-bg)",
+                  borderColor: "var(--ui-badge-neutral-border)",
+                  color: "var(--ui-badge-neutral-text)",
+                }}
+              >
+                <Plus className="size-4" />
+                Create brick
+              </Badge>
+            )}
           </motion.button>
         </div>
       </div>

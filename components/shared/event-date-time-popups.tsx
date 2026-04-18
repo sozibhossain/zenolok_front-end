@@ -305,7 +305,7 @@ function TimeDigitSlots({
             <motion.button
               type="button"
               onClick={() => onDigitClick(index)}
-              className={`inline-flex size-6 items-center justify-center rounded-full border text-[12px] leading-none transition ${
+              className={`inline-flex size-6 items-center justify-center rounded-full border text-[12px] leading-none transition focus:outline-none focus-visible:outline-none ${
                 char
                   ? "border-[var(--ui-calendar-accent)] bg-[var(--ui-calendar-accent)] text-white"
                   : "border-transparent bg-[var(--ui-calendar-keypad-empty)] text-white"
@@ -738,8 +738,6 @@ export function EventTimeRangePopup({
     setActiveDigitIndex(0);
   }, [endTime, isSingleMode, open, preferences.use24Hour, startTime]);
 
-  const getActiveDigits = () =>
-    activeField === "start" ? draftStartDigits : draftEndDigits;
   const updateDigitsForField = (
     field: "start" | "end",
     nextDigits: TimeDigits,
@@ -769,8 +767,10 @@ export function EventTimeRangePopup({
     setActiveDigitIndex(index);
   };
 
-  const handleDigit = (digit: string) => {
-    const sourceDigits = [...getActiveDigits()] as TimeDigits;
+  const handleDigit = React.useCallback((digit: string) => {
+    const sourceDigits = [
+      ...(activeField === "start" ? draftStartDigits : draftEndDigits),
+    ] as TimeDigits;
     sourceDigits[activeDigitIndex] = digit;
 
     if (!isValidPartialTimeDigits(sourceDigits, preferences.use24Hour)) {
@@ -788,10 +788,19 @@ export function EventTimeRangePopup({
       setActiveField("end");
       setActiveDigitIndex(0);
     }
-  };
+  }, [
+    activeDigitIndex,
+    activeField,
+    draftEndDigits,
+    draftStartDigits,
+    isSingleMode,
+    preferences.use24Hour,
+  ]);
 
-  const handleBackspace = () => {
-    const sourceDigits = [...getActiveDigits()] as TimeDigits;
+  const handleBackspace = React.useCallback(() => {
+    const sourceDigits = [
+      ...(activeField === "start" ? draftStartDigits : draftEndDigits),
+    ] as TimeDigits;
     let nextIndex = activeDigitIndex;
 
     if (!sourceDigits[nextIndex]) {
@@ -807,12 +816,17 @@ export function EventTimeRangePopup({
     sourceDigits[nextIndex] = "";
     updateDigitsForField(activeField, sourceDigits);
     setActiveDigitIndex(nextIndex);
-  };
+  }, [
+    activeDigitIndex,
+    activeField,
+    draftEndDigits,
+    draftStartDigits,
+  ]);
 
-  const handleClear = () => {
+  const handleClear = React.useCallback(() => {
     updateDigitsForField(activeField, createEmptyTimeDigits());
     setActiveDigitIndex(0);
-  };
+  }, [activeField]);
 
   const handleDurationPreset = (durationMinutes: number) => {
     if (isSingleMode) {
@@ -862,6 +876,146 @@ export function EventTimeRangePopup({
     { label: "1.5h", value: 90 },
     { label: "2h", value: 120 },
   ];
+
+  const applySelection = React.useCallback(() => {
+    if (!canApply) {
+      return;
+    }
+
+    const nextStartTime = timeDigitsToValue(
+      draftStartDigits,
+      draftStartMeridiem,
+      preferences.use24Hour,
+    );
+    const nextEndTime = isSingleMode
+      ? nextStartTime
+      : timeDigitsToValue(
+          draftEndDigits,
+          draftEndMeridiem,
+          preferences.use24Hour,
+        );
+
+    onApply({
+      startTime: nextStartTime,
+      endTime: nextEndTime,
+      rollsEndToNextDay,
+    });
+    onOpenChange(false);
+  }, [
+    canApply,
+    draftEndDigits,
+    draftEndMeridiem,
+    draftStartDigits,
+    draftStartMeridiem,
+    isSingleMode,
+    onApply,
+    onOpenChange,
+    preferences.use24Hour,
+    rollsEndToNextDay,
+  ]);
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault();
+        handleDigit(event.key);
+        return;
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        handleBackspace();
+        return;
+      }
+
+      if (event.key === "c" || event.key === "C") {
+        event.preventDefault();
+        handleClear();
+        return;
+      }
+
+      if (!preferences.use24Hour && (event.key === "a" || event.key === "A")) {
+        event.preventDefault();
+        updateMeridiemForField(activeField, "AM");
+        return;
+      }
+
+      if (!preferences.use24Hour && (event.key === "p" || event.key === "P")) {
+        event.preventDefault();
+        updateMeridiemForField(activeField, "PM");
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+
+        if (activeDigitIndex > 0) {
+          setActiveDigitIndex((previous) => previous - 1);
+          return;
+        }
+
+        if (!isSingleMode && activeField === "end") {
+          setActiveField("start");
+          setActiveDigitIndex(3);
+        }
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+
+        if (activeDigitIndex < 3) {
+          setActiveDigitIndex((previous) => previous + 1);
+          return;
+        }
+
+        if (!isSingleMode && activeField === "start") {
+          setActiveField("end");
+          setActiveDigitIndex(0);
+        }
+        return;
+      }
+
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        if (isSingleMode) {
+          return;
+        }
+
+        event.preventDefault();
+        setActiveField((previous) => (previous === "start" ? "end" : "start"));
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applySelection();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    activeDigitIndex,
+    activeField,
+    applySelection,
+    handleBackspace,
+    handleClear,
+    handleDigit,
+    isSingleMode,
+    open,
+    preferences.use24Hour,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -976,27 +1130,7 @@ export function EventTimeRangePopup({
               {canApply ? (
                 <motion.button
                   type="button"
-                  onClick={() => {
-                    const nextStartTime = timeDigitsToValue(
-                      draftStartDigits,
-                      draftStartMeridiem,
-                      preferences.use24Hour,
-                    );
-                    const nextEndTime = isSingleMode
-                      ? nextStartTime
-                      : timeDigitsToValue(
-                          draftEndDigits,
-                          draftEndMeridiem,
-                          preferences.use24Hour,
-                        );
-
-                    onApply({
-                      startTime: nextStartTime,
-                      endTime: nextEndTime,
-                      rollsEndToNextDay,
-                    });
-                    onOpenChange(false);
-                  }}
+                  onClick={applySelection}
                   className="rounded-full px-2 text-[12px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)]"
                   whileTap={{ scale: 0.97 }}
                 >

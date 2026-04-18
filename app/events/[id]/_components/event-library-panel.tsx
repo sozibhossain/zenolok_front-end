@@ -1,11 +1,17 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
-import Image from "next/image";
-import { ArrowLeft, Link2, Paperclip } from "lucide-react";
+import * as React from "react";
+import { ArrowLeft, Download, ExternalLink, Link2, Paperclip } from "lucide-react";
 
 import type { JamMessage } from "@/lib/api";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatMessageStamp, getMessageLabel } from "./event-detail-helpers";
+import {
+  downloadMessageAttachment,
+  formatMessageStamp,
+  getMessageAttachmentKind,
+  getMessageLabel,
+} from "./event-detail-helpers";
 
 type EventLibraryTab = "media" | "files" | "link";
 
@@ -28,6 +34,18 @@ export function EventLibraryPanel({
   use24Hour,
   onBackToJam,
 }: EventLibraryPanelProps) {
+  const [failedPreviewIds, setFailedPreviewIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const markPreviewFailed = React.useCallback((messageId: string) => {
+    setFailedPreviewIds((previous) => {
+      const next = new Set(previous);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
   return (
     <>
       <div className="mb-3 flex items-center gap-2 text-[var(--text-muted)]">
@@ -65,14 +83,23 @@ export function EventLibraryPanel({
                 key={message._id}
                 className="overflow-hidden rounded-sm bg-[var(--surface-1)]"
               >
-                {message.mediaUrl ? (
-                  <Image
+                {message.mediaUrl &&
+                getMessageAttachmentKind(message) === "video" &&
+                !failedPreviewIds.has(message._id) ? (
+                  <video
+                    src={message.mediaUrl}
+                    controls
+                    preload="metadata"
+                    className="h-[88px] w-full bg-black/20 object-cover"
+                    onError={() => markPreviewFailed(message._id)}
+                  />
+                ) : message.mediaUrl && !failedPreviewIds.has(message._id) ? (
+                  <img
                     src={message.mediaUrl}
                     alt={message.fileName || "media"}
-                    width={120}
-                    height={90}
                     className="h-[88px] w-full object-cover"
-                    unoptimized
+                    loading="lazy"
+                    onError={() => markPreviewFailed(message._id)}
                   />
                 ) : (
                   <div className="flex h-[88px] items-center justify-center px-2 text-center text-xs text-[var(--text-muted)]">
@@ -96,7 +123,7 @@ export function EventLibraryPanel({
             {fileMessages.map((message) => (
               <div
                 key={message._id}
-                className="flex items-center justify-between rounded-xl bg-[var(--surface-1)] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-1)] px-3 py-2"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm text-[var(--text-strong)]">
@@ -106,7 +133,32 @@ export function EventLibraryPanel({
                     {formatMessageStamp(message.createdAt, use24Hour)}
                   </p>
                 </div>
-                <Paperclip className="size-4 text-[var(--text-muted)]" />
+                <div className="flex shrink-0 items-center gap-1 text-[var(--text-muted)]">
+                  <Paperclip className="size-4" />
+                  {message.mediaUrl ? (
+                    <>
+                      <a
+                        href={message.mediaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex size-7 items-center justify-center rounded-full transition hover:bg-[var(--surface-3)]"
+                        aria-label="Open file"
+                      >
+                        <ExternalLink className="size-4" />
+                      </a>
+                      <button
+                        type="button"
+                        className="inline-flex size-7 items-center justify-center rounded-full transition hover:bg-[var(--surface-3)]"
+                        aria-label="Download file"
+                        onClick={() => {
+                          void downloadMessageAttachment(message);
+                        }}
+                      >
+                        <Download className="size-4" />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

@@ -150,6 +150,7 @@ export interface JamMessage {
   text?: string;
   mediaUrl?: string;
   fileName?: string;
+  fileMimeType?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -419,6 +420,8 @@ export const jamApi = {
       headers: { "Content-Type": "multipart/form-data" },
     })),
   getByEvent: (eventId: string) => unwrap<JamMessage[]>(apiClient.get(`/jam-messages/event/${eventId}`)),
+  update: (id: string, payload: { text: string }) =>
+    unwrap<JamMessage>(apiClient.patch(`/jam-messages/${id}`, payload)),
   delete: (id: string) => unwrap<null>(apiClient.delete(`/jam-messages/${id}`)),
 };
 

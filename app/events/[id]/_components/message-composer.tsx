@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ImagePlus, Send } from "lucide-react";
 
 type MessageComposerProps = {
@@ -19,6 +20,39 @@ export function MessageComposer({
   onSend,
   isSending,
 }: MessageComposerProps) {
+  const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeTextarea = React.useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 22;
+    const paddingTop = Number.parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computedStyle.paddingBottom) || 0;
+    const singleLineHeight = lineHeight + paddingTop + paddingBottom;
+    const fourLineHeight = lineHeight * 4 + paddingTop + paddingBottom;
+    const contentHeight = textarea.scrollHeight;
+    const hasWrappedBeyondOneLine = contentHeight > singleLineHeight + 1;
+    const nextHeight = hasWrappedBeyondOneLine
+      ? fourLineHeight
+      : singleLineHeight;
+
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      hasWrappedBeyondOneLine && contentHeight > fourLineHeight
+        ? "auto"
+        : "hidden";
+  }, []);
+
+  React.useEffect(() => {
+    resizeTextarea();
+  }, [messageText, resizeTextarea]);
+
   return (
     <div className="space-y-2">
       {selectedFileName ? (
@@ -36,11 +70,12 @@ export function MessageComposer({
           />
         </label>
         <textarea
+          ref={textareaRef}
           value={messageText}
           onChange={(event) => onMessageChange(event.target.value)}
           placeholder="Type here..."
           rows={1}
-          className="min-h-8 max-h-28 w-full resize-none overflow-y-auto rounded border-none bg-transparent px-0 text-[16px] text-[var(--text-default)] placeholder:text-[24px] pt-2 placeholder:text-[var(--text-muted)] focus:outline-none"
+          className="w-full resize-none overflow-y-hidden rounded border-none bg-transparent px-0 py-2 text-[16px] leading-[22px] text-[var(--text-default)] placeholder:text-[24px] placeholder:text-[var(--text-muted)] focus:outline-none"
         />
         <button
           type="button"

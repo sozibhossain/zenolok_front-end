@@ -13,3 +13,15 @@ export function appendMessageIfMissing(messages: JamMessage[], next: JamMessage)
 
   return sortMessagesByCreatedAt([...messages, next]);
 }
+
+export function upsertMessage(messages: JamMessage[], next: JamMessage) {
+  const hasMessage = messages.some((message) => message._id === next._id);
+
+  if (!hasMessage) {
+    return appendMessageIfMissing(messages, next);
+  }
+
+  return sortMessagesByCreatedAt(
+    messages.map((message) => (message._id === next._id ? next : message)),
+  );
+}

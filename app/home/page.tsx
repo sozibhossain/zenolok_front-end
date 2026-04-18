@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   ListTodo,
+  MapPin,
   MessageCircle,
   PanelLeft,
   Plus,
@@ -107,23 +108,24 @@ type WeekSegment = {
 };
 
 const CALENDAR_SEGMENT_ROW_HEIGHT = 18;
-const CALENDAR_SEGMENT_ROW_GAP = 2;
+const CALENDAR_SEGMENT_ROW_GAP = 0;
 const CALENDAR_SEGMENT_TOP_OFFSET = 40;
-const CALENDAR_CELL_HORIZONTAL_PADDING = 6;
+const CALENDAR_CELL_HORIZONTAL_PADDING = 0;
 const CALENDAR_SEGMENT_STACK_CLEARANCE = 4;
 
-function hexToRgba(color: string, alpha: number) {
+function getContrastTextColor(color: string) {
   const hex = color.replace("#", "");
 
   if (hex.length !== 6) {
-    return color;
+    return "#FFFFFF";
   }
 
   const red = Number.parseInt(hex.slice(0, 2), 16);
   const green = Number.parseInt(hex.slice(2, 4), 16);
   const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
 
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  return luminance > 160 ? "#253047" : "#FFFFFF";
 }
 
 function HomeEventTodoRow({
@@ -149,6 +151,23 @@ function HomeEventTodoRow({
       >
         {text}
       </span>
+    </div>
+  );
+}
+
+function HomeEventMetaRow({
+  location,
+  className = "",
+}: {
+  location: string;
+  className?: string;
+}) {
+  return (
+    <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
+      <MapPin className="size-3.5 shrink-0 text-[#9BA1AC]" strokeWidth={2.2} />
+      <p className="truncate font-poppins text-xs text-[#9BA1AC]">
+        {location}
+      </p>
     </div>
   );
 }
@@ -883,6 +902,10 @@ export default function HomePage() {
                               {rangeLabel}
                             </p>
                           ) : null}
+                          <HomeEventMetaRow
+                            location={event.location}
+                            className="ml-[22px] mt-1.5"
+                          />
                         </>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -924,13 +947,10 @@ export default function HomePage() {
                               >
                                 {event.title}
                               </p>
-                              {event.location ? (
-                                <p
-                                  className="mt-0.5 truncate font-poppins text-xs text-[#9BA1AC]"
-                                >
-                                  {event.location}
-                                </p>
-                              ) : null}
+                              <HomeEventMetaRow
+                                location={event.location}
+                                className="mt-0.5"
+                              />
                             </div>
                           </div>
                         </div>
@@ -1240,7 +1260,7 @@ export default function HomePage() {
                                   </div>
 
                                   <div
-                                    className="flex-1 space-y-[1px] overflow-hidden"
+                                    className="flex-1 space-y-0 overflow-hidden"
                                     style={{
                                       paddingLeft: CALENDAR_CELL_HORIZONTAL_PADDING,
                                       paddingRight: CALENDAR_CELL_HORIZONTAL_PADDING,
@@ -1255,26 +1275,20 @@ export default function HomePage() {
                                   >
                                     {visibleDayEvents.map((event) => {
                                       if (event.isAllDay) {
+                                        const textColor = getContrastTextColor(
+                                          event.color,
+                                        );
                                         return (
                                           <div
                                             key={event.id}
-                                            className="flex h-[16px] items-center overflow-hidden rounded-[3px] pr-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]"
+                                            className="flex h-[16px] min-w-0 items-center overflow-hidden rounded-[3px] px-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
                                             style={{
-                                              backgroundColor: hexToRgba(
-                                                event.color,
-                                                0.26,
-                                              ),
+                                              backgroundColor: event.color,
                                             }}
                                           >
                                             <span
-                                              className="h-full w-1 shrink-0 rounded-[2px]"
-                                              style={{
-                                                backgroundColor: event.color,
-                                              }}
-                                            />
-                                            <span
-                                              className="truncate pl-1 font-poppins text-[13px] leading-none font-semibold"
-                                              style={{ color: event.color }}
+                                              className="truncate font-poppins text-[13px] leading-none font-semibold"
+                                              style={{ color: textColor }}
                                             >
                                               {event.title}
                                             </span>
@@ -1409,31 +1423,36 @@ export default function HomePage() {
                               }}
                             >
                               <div
-                                className="grid grid-cols-7 auto-rows-[18px] gap-y-[2px]"
+                                className="grid grid-cols-7 auto-rows-[18px]"
                               >
                                 {weekInfo.segments
                                   .filter((segment) => segment.lane < visiblePeriodRows)
-                                  .map((segment) => (
-                                  <div
-                                    key={segment.id}
-                                    style={{
-                                      gridColumn: `${segment.startCol} / ${segment.endCol + 1}`,
-                                      gridRow: segment.lane + 1,
-                                      backgroundColor: hexToRgba(segment.color, 0.24),
-                                    }}
-                                    className="flex h-[18px] items-center overflow-hidden rounded-[3px] pr-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
-                                  >
-                                    <span
-                                      className="h-full w-1 shrink-0 rounded-[2px]"
-                                      style={{ backgroundColor: segment.color }}
-                                    />
-                                    {segment.isStart ? (
-                                      <span className="truncate px-1 font-poppins text-[14px] leading-none font-semibold text-[#6A590F]">
-                                        {segment.title}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                ))}
+                                  .map((segment) => {
+                                    const textColor = getContrastTextColor(
+                                      segment.color,
+                                    );
+
+                                    return (
+                                      <div
+                                        key={segment.id}
+                                        style={{
+                                          gridColumn: `${segment.startCol} / ${segment.endCol + 1}`,
+                                          gridRow: segment.lane + 1,
+                                          backgroundColor: segment.color,
+                                        }}
+                                        className="flex h-[18px] min-w-0 items-center overflow-hidden px-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
+                                      >
+                                        {segment.isStart ? (
+                                          <span
+                                            className="truncate font-poppins text-[14px] leading-none font-semibold"
+                                            style={{ color: textColor }}
+                                          >
+                                            {segment.title}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             </div>
                           </div>

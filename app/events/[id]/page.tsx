@@ -90,6 +90,19 @@ function isLinkText(value: string) {
   return /^https?:\/\/\S+$/i.test(value.trim());
 }
 
+function isMediaFile(file: File) {
+  if (
+    file.type.startsWith("image/") ||
+    file.type.startsWith("video/")
+  ) {
+    return true;
+  }
+
+  return /\.(avif|bmp|gif|heic|heif|jpe?g|m4v|mov|mp4|mkv|png|svg|webm|webp)$/i.test(
+    file.name,
+  );
+}
+
 function toDateValue(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -328,11 +341,7 @@ export default function EventDetailsPage() {
       let messageType: "text" | "media" | "file" | "link" = "text";
 
       if (selectedFile) {
-        messageType =
-          selectedFile.type.startsWith("image/") ||
-          selectedFile.type.startsWith("video/")
-            ? "media"
-            : "file";
+        messageType = isMediaFile(selectedFile) ? "media" : "file";
       } else if (nextText && isLinkText(nextText)) {
         messageType = "link";
       }
