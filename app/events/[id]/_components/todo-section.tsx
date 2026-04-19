@@ -5,6 +5,7 @@ import { Check, Plus, Trash2 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TodoStatusCircleButton } from "@/components/shared/todo-status-circle";
 import type { EventTodo } from "@/lib/api";
 
 type TodoSectionProps = {
@@ -20,7 +21,7 @@ type TodoSectionProps = {
   ) => Promise<void> | Promise<unknown> | void;
   onDelete: (todoId: string) => void;
   onReorder: (todoIds: string[]) => Promise<void> | void;
-  accentColor?: string;
+  checkedColor?: string;
   bare?: boolean;
 };
 
@@ -51,7 +52,7 @@ export function TodoSection({
   onSaveText,
   onDelete,
   onReorder,
-  accentColor = "#7DC97E",
+  checkedColor,
   bare = false,
 }: TodoSectionProps) {
   const addInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -193,6 +194,7 @@ export function TodoSection({
       <div className="space-y-2">
         {visibleTodos.map((todo) => {
           const draftValue = draftTexts[todo._id] ?? todo.text;
+          const isChecked = Boolean(todo.isCompleted);
 
           return (
             <div
@@ -209,24 +211,16 @@ export function TodoSection({
                 draggingTodoId === todo._id ? "opacity-60" : ""
               }`}
             >
-              <button
-                type="button"
+              <TodoStatusCircleButton
+                checked={isChecked}
+                checkedColor={checkedColor}
                 onClick={() => onToggle(todo)}
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-[var(--ui-checkbox-bg)]"
-                style={{ borderColor: accentColor }}
                 aria-label={
-                  todo.isCompleted
+                  isChecked
                     ? `Mark ${todo.text} as unfinished`
                     : `Mark ${todo.text} as finished`
                 }
-              >
-                {todo.isCompleted ? (
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: accentColor }}
-                  />
-                ) : null}
-              </button>
+              />
 
               <Input
                 value={draftValue}
@@ -246,11 +240,7 @@ export function TodoSection({
                 }}
                 placeholder={todo.text}
                 aria-label={`Edit ${todo.text}`}
-                className={`h-8 rounded-none border-none bg-transparent px-0 text-[14px] shadow-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 ${
-                  todo.isCompleted
-                    ? "text-[var(--text-muted)] line-through opacity-60"
-                    : "text-[var(--text-default)]"
-                }`}
+                className={`h-8 rounded-none border-none bg-transparent px-0 text-[14px] shadow-none placeholder:text-[var(--text-muted)] focus-visible:ring-0`}
               />
 
               <div className="flex items-center gap-2">

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Bell, CalendarDays, Clock3, Repeat2, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
+import { TodoStatusCircleButton } from "@/components/shared/todo-status-circle";
 import {
   Dialog,
   DialogContent,
@@ -59,21 +60,17 @@ export function CategoryDetailDialog({
 
                 return (
                   <div key={item._id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className={`inline-flex size-5 items-center justify-center rounded-full border bg-[var(--ui-checkbox-bg)] ${
-                        isChecked ? "border-[#7DC97E]" : "border-[var(--ui-checkbox-border)]"
-                      }`}
+                    <TodoStatusCircleButton
+                      checked={isChecked}
+                      checkedColor={selectedCategory?.color || "#7DC97E"}
                       onClick={() => onToggleTodo(item._id)}
                       aria-label={
                         isPendingDelete ? `Cancel delete for ${item.text}` : `Delete ${item.text} after 3 seconds`
                       }
-                    >
-                      {isChecked ? <span className="size-2.5 rounded-full bg-[#7DC97E]" /> : null}
-                    </button>
+                    />
                     <span
                       className={`flex-1 truncate text-[24px] leading-[120%] sm:text-[24px] ${
-                        isChecked ? "text-[var(--text-muted)] line-through" : "text-[var(--text-default)]"
+                        isChecked ? "text-[var(--text-muted)]" : "text-[var(--text-default)]"
                       }`}
                     >
                       {item.text}

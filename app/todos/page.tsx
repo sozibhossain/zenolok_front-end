@@ -21,6 +21,7 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
+import { TodoStatusCircleButton } from "@/components/shared/todo-status-circle";
 import {
   paginateArray,
   todoItemApi,
@@ -310,31 +311,23 @@ function CategoryCard({
               className="flex justify-between gap-2 text-[18px] text-[var(--text-default)]"
             >
               <div className="space-x-2">
-                <button
-                  type="button"
+                <TodoStatusCircleButton
+                  checked={isChecked}
+                  checkedColor={category.color || "#38A8E8"}
                   onClick={(event) => {
                     event.stopPropagation();
                     onTodoClick(item._id);
                   }}
-                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-[var(--ui-checkbox-bg)]"
-                  style={{ borderColor: category.color || "#38A8E8" }}
                   aria-label={
                     isPendingDelete
                       ? `Cancel delete for ${item.text}`
                       : `Delete ${item.text} after 3 seconds`
                   }
-                >
-                  {isChecked ? (
-                    <span
-                      className="size-2.5 rounded-full"
-                      style={{ backgroundColor: category.color || "#38A8E8" }}
-                    />
-                  ) : null}
-                </button>
+                />
                 <span
                   className={`${
                     isChecked
-                      ? "text-[var(--text-muted)] line-through"
+                      ? "text-[var(--text-muted)] "
                       : isDateOnlyOverdue
                         ? "font-medium text-red-500"
                         : "text-[var(--text-default)]"
@@ -1335,31 +1328,22 @@ function TodosPageContent() {
                             {offsetLabel}
                           </p>
 
-                          <button
-                            type="button"
+                          <TodoStatusCircleButton
+                            checked={isChecked}
+                            checkedColor={category.color || "#38A8E8"}
+                            uncheckedColor={category.color || "#38A8E8"}
                             onClick={() => handleTodoClickDelete(todo._id)}
-                            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 bg-[var(--ui-checkbox-bg)]"
-                            style={{ borderColor: category.color || "#38A8E8" }}
                             aria-label={
                               isAutoDeleting
                                 ? `Cancel delete for ${todo.text}`
                                 : `Delete ${todo.text} after 3 seconds`
                             }
-                          >
-                            {isChecked ? (
-                              <span
-                                className="size-2.5 rounded-full"
-                                style={{
-                                  backgroundColor: category.color || "#38A8E8",
-                                }}
-                              />
-                            ) : null}
-                          </button>
+                          />
 
                           <p
                             className={`font-poppins min-w-0 flex-1 truncate text-[18px] leading-[120%] ${
                               isChecked
-                                ? "text-[var(--text-muted)] line-through"
+                                ? "text-[var(--text-muted)]"
                                 : isDateOnlyOverdue
                                   ? "font-medium text-red-500"
                                   : "text-[var(--text-default)]"

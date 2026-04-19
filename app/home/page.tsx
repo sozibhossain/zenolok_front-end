@@ -49,6 +49,7 @@ import {
   EventSingleField,
 } from "@/components/shared/event-range-field";
 import { SectionLoading } from "@/components/shared/section-loading";
+import { TodoStatusCircle } from "@/components/shared/todo-status-circle";
 import { Button } from "@/components/ui/button";
 import { BrickFilterBar } from "@/components/shared/brick-filter-bar";
 import {
@@ -118,23 +119,22 @@ const CALENDAR_SEGMENT_STACK_CLEARANCE = 4;
 function HomeEventTodoRow({
   text,
   completed,
+  color,
 }: {
   text: string;
   completed: boolean;
+  color: string;
 }) {
-  const markerColor = completed ? "#2CCB62" : "#F7C700";
-
   return (
     <div className="flex items-center gap-2">
-      <span
+      <TodoStatusCircle
+        checked={completed}
+        checkedColor={color}
         aria-hidden="true"
-        className="size-4 shrink-0 rounded-full border-2 bg-transparent"
-        style={{ borderColor: markerColor }}
+        className="size-6 bg-transparent"
       />
       <span
-        className={`font-poppins text-[15px] leading-[120%] font-medium text-[#575F6D] ${
-          completed ? "line-through opacity-60" : ""
-        }`}
+        className={`font-poppins text-[15px] leading-[120%] font-medium`}
       >
         {text}
       </span>
@@ -1008,6 +1008,7 @@ export default function HomePage() {
                             key={todo.id}
                             text={todo.text}
                             completed={todo.isCompleted}
+                            color={event.color}
                           />
                         ))}
                         <p className="pl-7 font-poppins text-sm text-[#C0C4CC]">

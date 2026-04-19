@@ -814,7 +814,7 @@ export default function EventDetailsPage() {
                 onReorder={(todoIds) =>
                   reorderTodosMutation.mutateAsync(todoIds)
                 }
-                accentColor={event.brick?.color || NO_BRICK_EVENT_COLOR}
+                checkedColor={event.brick?.color || NO_BRICK_EVENT_COLOR}
                 bare
               />
               <div className="mx-4 border-t border-[var(--border)]" />
@@ -841,7 +841,7 @@ export default function EventDetailsPage() {
                 placeholder="New notes"
                 label={isCollaborativeEvent ? "Private notes" : "Notes"}
                 minHeightClassName={
-                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[220px]"
+                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[50px]"
                 }
                 bare
               />
@@ -878,7 +878,7 @@ export default function EventDetailsPage() {
                   onReorder={(todoIds) =>
                     reorderTodosMutation.mutateAsync(todoIds)
                   }
-                  accentColor={event.brick?.color || NO_BRICK_EVENT_COLOR}
+                  checkedColor={event.brick?.color || NO_BRICK_EVENT_COLOR}
                   bare
                 />
                 <div className="mx-4 border-t border-[var(--border)]" />
@@ -891,7 +891,7 @@ export default function EventDetailsPage() {
                   placeholder="New shared notes"
                   label="Shared notes"
                 minHeightClassName={
-                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[220px]"
+                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[50px]"
                 }
                   bare
                 />
