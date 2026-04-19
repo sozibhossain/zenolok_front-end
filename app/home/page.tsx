@@ -130,6 +130,7 @@ function HomeEventTodoRow({
       <TodoStatusCircle
         checked={completed}
         checkedColor={color}
+        uncheckedColor="var(--light-gray2, #D5D5D5)"
         aria-hidden="true"
         className="size-6 bg-transparent"
       />
@@ -150,7 +151,7 @@ function HomeEventMetaRow({
   className?: string;
 }) {
   return (
-    <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
+    <div className={`flex min-w-0 items-center gap-1.5 ${className}`} >
       <MapPin className="size-3.5 shrink-0 text-[#9BA1AC]" strokeWidth={2.2} />
       <p className="truncate font-poppins text-xs text-[#9BA1AC]">
         {location}
@@ -778,18 +779,11 @@ export default function HomePage() {
         return prev;
       }
 
-      const timedEventWithTodos = selectedDateEvents.find(
-        (event) =>
-          !event.spansMultipleDays && !event.isAllDay && event.todos.length > 0,
-      );
-
-      const anyEventWithTodos = selectedDateEvents.find(
-        (event) => event.todos.length > 0,
-      );
-
-      return timedEventWithTodos?.id ?? anyEventWithTodos?.id ?? null;
+      return null;
     });
   }, [selectedDateEvents]);
+
+  const sidebarHeight = weeks.length * 136 + 36;
 
   const eventsSidebarContent = (
     <div className="flex h-full min-h-0 flex-col">
@@ -840,181 +834,170 @@ export default function HomePage() {
               return (
                 <div
                   key={event.id}
-                  className="home-event-card rounded-2xl border border-[#E8EBF0] bg-white px-3 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleOpenEventDetails(event.id)}
-                  onKeyDown={(keyEvent) => {
-                    if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
-                      return;
-                    }
-
-                    keyEvent.preventDefault();
-                    handleOpenEventDetails(event.id);
-                  }}
+                  className={`overflow-hidden rounded-2xl bg-transparent ${
+                    expanded ? "h-[244px]" : "h-[102px]"
+                  }`}
                 >
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="min-w-0 flex-1">
-                      {typeLabel ? (
-                        <>
+                  <div
+                    className="home-event-card h-[102px] rounded-2xl border border-[#E8EBF0] bg-white px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleOpenEventDetails(event.id)}
+                    onKeyDown={(keyEvent) => {
+                      if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
+                        return;
+                      }
+
+                      keyEvent.preventDefault();
+                      handleOpenEventDetails(event.id);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        {typeLabel ? (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-9 w-1.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: event.color }}
+                              />
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span
+                                  className="shrink-0 font-poppins text-sm font-semibold"
+                                  style={{
+                                    color: event.color,
+                                  }}
+                                >
+                                  {typeLabel}
+                                </span>
+                                <span className="h-5 w-px shrink-0 bg-[#D4D8DF]" />
+                                <p className="truncate font-poppins text-base font-medium text-[#3A3F47]">
+                                  {event.title}
+                                </p>
+                              </div>
+                            </div>
+                            {rangeLabel ? (
+                              <p className="ml-[22px] mt-1.5 truncate font-poppins text-xs text-[#9AA1AE]">
+                                {rangeLabel}
+                              </p>
+                            ) : null}
+                            <HomeEventMetaRow
+                              location={event.location}
+                              className="ml-[22px] mt-1.5"
+                            />
+                          </>
+                        ) : (
                           <div className="flex items-center gap-2">
                             <span
-                              className="h-9 w-1.5 shrink-0 rounded-full"
+                              className="h-10 w-1.5 shrink-0 rounded-full"
                               style={{ backgroundColor: event.color }}
                             />
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span
-                                className="shrink-0 font-poppins text-sm font-semibold"
-                                style={{
-                                  color: event.color,
-                                }}
-                              >
-                                {typeLabel}
-                              </span>
-                              <span className="h-5 w-px shrink-0 bg-[#D4D8DF]" />
-                              <p
-                                className="truncate font-poppins text-base font-medium text-[#3A3F47]"
-                              >
-                                {event.title}
-                              </p>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <div className="w-13 shrink-0">
+                                <p className="font-poppins text-sm font-semibold text-[#666B75]">
+                                  {startClock.main}
+                                  {startClock.suffix ? (
+                                    <span className="ml-0.5 align-top text-xs font-semibold text-[#8B909A]">
+                                      {startClock.suffix}
+                                    </span>
+                                  ) : null}
+                                </p>
+                                <p className="mt-0.5 font-poppins text-xs text-[#9A9FA8]">
+                                  {endClock.main}
+                                  {endClock.suffix ? (
+                                    <span className="ml-0.5 align-top text-xs font-medium text-[#A5AAB4]">
+                                      {endClock.suffix}
+                                    </span>
+                                  ) : null}
+                                </p>
+                              </div>
+                              <span className="h-8 w-px shrink-0 bg-[#D4D8DF]" />
+                              <div className="min-w-0">
+                                <p className="truncate font-poppins text-sm font-medium text-[#3A3F47]">
+                                  {event.title}
+                                </p>
+                                <HomeEventMetaRow
+                                  location={event.location}
+                                  className="mt-0.5"
+                                />
+                              </div>
                             </div>
                           </div>
-                          {rangeLabel ? (
-                            <p
-                              className="ml-[22px] mt-1.5 truncate font-poppins text-xs text-[#9AA1AE]"
-                            >
-                              {rangeLabel}
-                            </p>
-                          ) : null}
-                          <HomeEventMetaRow
-                            location={event.location}
-                            className="ml-[22px] mt-1.5"
+                        )}
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-0.5 text-[#A2A9B7]">
+                        {event.spansMultipleDays ? (
+                          <HomeSidebarActionIcon
+                            icon={MessageCircle}
+                            badgeCount={messageCount}
+                            label={`${event.title} streak updates`}
                           />
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-10 w-1.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: event.color }}
+                        ) : null}
+
+                        {hasRepeat ? (
+                          <HomeSidebarActionIcon
+                            icon={RefreshCw}
+                            label={`${event.title} recurrence`}
                           />
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <div className="w-13 shrink-0">
-                              <p
-                                className="font-poppins text-sm font-semibold text-[#666B75]"
-                              >
-                                {startClock.main}
-                                {startClock.suffix ? (
-                                  <span
-                                    className="ml-0.5 align-top text-xs font-semibold text-[#8B909A]"
-                                  >
-                                    {startClock.suffix}
-                                  </span>
-                                ) : null}
-                              </p>
-                              <p
-                                className="mt-0.5 font-poppins text-xs text-[#9A9FA8]"
-                              >
-                                {endClock.main}
-                                {endClock.suffix ? (
-                                  <span
-                                    className="ml-0.5 align-top text-xs font-medium text-[#A5AAB4]"
-                                  >
-                                    {endClock.suffix}
-                                  </span>
-                                ) : null}
-                              </p>
-                            </div>
-                            <span className="h-8 w-px shrink-0 bg-[#D4D8DF]" />
-                            <div className="min-w-0">
-                              <p
-                                className="truncate font-poppins text-sm font-medium text-[#3A3F47]"
-                              >
-                                {event.title}
-                              </p>
-                              <HomeEventMetaRow
-                                location={event.location}
-                                className="mt-0.5"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : null}
 
-                    <div className="flex shrink-0 items-center gap-0.5 text-[#A2A9B7]">
-                      {event.spansMultipleDays ? (
-                        <HomeSidebarActionIcon
-                          icon={MessageCircle}
-                          badgeCount={messageCount}
-                          label={`${event.title} streak updates`}
-                        />
-                      ) : null}
+                        {hasAlarm ? (
+                          <HomeSidebarActionIcon
+                            icon={Bell}
+                            badgeCount={alertCount}
+                            label={`${event.title} alerts`}
+                          />
+                        ) : null}
 
-                      {hasRepeat ? (
-                        <HomeSidebarActionIcon
-                          icon={RefreshCw}
-                          label={`${event.title} recurrence`}
-                        />
-                      ) : null}
+                        {hasTodos ? (
+                          <HomeSidebarActionIcon
+                            icon={ListTodo}
+                            badgeCount={incompleteTodoCount}
+                            label={`${event.title} tasks`}
+                          />
+                        ) : null}
 
-                      {hasAlarm ? (
-                        <HomeSidebarActionIcon
-                          icon={Bell}
-                          badgeCount={alertCount}
-                          label={`${event.title} alerts`}
-                        />
-                      ) : null}
-
-                      {hasTodos ? (
-                        <HomeSidebarActionIcon
-                          icon={ListTodo}
-                          badgeCount={incompleteTodoCount}
-                          label={`${event.title} tasks`}
-                        />
-                      ) : null}
-
-                      {hasTodos ? (
-                        <button
-                          type="button"
-                          className="inline-flex size-7 items-center justify-center rounded-full text-[#AAB0BB] transition hover:bg-white/80 hover:text-[#737B8B]"
-                          aria-label={
-                            expanded
-                              ? "Collapse event todos"
-                              : "Expand event todos"
-                          }
-                          onClick={(clickEvent) => {
-                            clickEvent.stopPropagation();
-                            setExpandedEventId((prev) =>
-                              prev === event.id ? null : event.id,
-                            );
-                          }}
-                        >
-                          {expanded ? (
-                            <ChevronUp className="size-[18px]" />
-                          ) : (
-                            <ChevronDown className="size-[18px]" />
-                          )}
-                        </button>
-                      ) : null}
+                        {hasTodos ? (
+                          <button
+                            type="button"
+                            className="inline-flex size-7 items-center justify-center rounded-full text-[#AAB0BB] transition hover:bg-white/80 hover:text-[#737B8B]"
+                            aria-label={
+                              expanded
+                                ? "Collapse event todos"
+                                : "Expand event todos"
+                            }
+                            onClick={(clickEvent) => {
+                              clickEvent.stopPropagation();
+                              setExpandedEventId((prev) =>
+                                prev === event.id ? null : event.id,
+                              );
+                            }}
+                          >
+                            {expanded ? (
+                              <ChevronUp className="size-[18px]" />
+                            ) : (
+                              <ChevronDown className="size-[18px]" />
+                            )}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
                   {expanded ? (
-                    <div className="mt-3">
-                      <div className="mx-auto mb-3 h-px w-[68%] bg-[#D6D8DC]" />
-                      <div className="space-y-2 pl-6">
-                        {event.todos.map((todo) => (
-                          <HomeEventTodoRow
-                            key={todo.id}
-                            text={todo.text}
-                            completed={todo.isCompleted}
-                            color={event.color}
-                          />
-                        ))}
-                        <p className="pl-7 font-poppins text-sm text-[#C0C4CC]">
-                          New todo
-                        </p>
-                      </div>
+                    <div className="drag-scrollbar-hidden mt-3 max-h-[132px] space-y-3 overflow-y-auto bg-transparent pl-8">
+                      {event.todos.map((todo) => (
+                        <HomeEventTodoRow
+                          key={todo.id}
+                          text={todo.text}
+                          completed={todo.isCompleted}
+                          color={event.color}
+                        />
+                      ))}
+                      <p className="pl-7 font-poppins text-sm text-[#C0C4CC]">
+                        New todo
+                      </p>
                     </div>
                   ) : null}
                 </div>
@@ -1080,11 +1063,14 @@ export default function HomePage() {
         ) : (
           <>
             <div className="home-calendar-layout grid !gap-4 xl:grid-cols-[272px_minmax(0,1fr)]">
-              <aside className="home-events-sidebar hidden h-[720px] min-h-0 rounded-[24px] border border-[#D8DEEA] bg-[#ECEFF4] p-3 xl:flex xl:flex-col">
+              <aside
+                className="home-events-sidebar hidden min-h-0 rounded-[24px] border border-[#D8DEEA] bg-[#ECEFF4] p-3 xl:flex xl:flex-col"
+                style={{ height: sidebarHeight }}
+              >
                 {eventsSidebarContent}
               </aside>
 
-              <div className="min-w-0 space-y-2">
+              <div className="min-w-0 space-y-2 ">
                 <div className="flex items-center justify-between xl:hidden">
                   <Button
                     type="button"

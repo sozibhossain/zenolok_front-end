@@ -3,12 +3,11 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { differenceInCalendarDays, format, startOfDay } from "date-fns";
+import { differenceInCalendarDays, startOfDay } from "date-fns";
 import {
   Bell,
   CalendarClock,
-  CalendarDays,
-  Clock3,
+  ListFilter,
   Pencil,
   Plus,
   Repeat2,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useAppState } from "@/components/providers/app-state-provider";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
@@ -49,7 +47,6 @@ import {
   type RepeatValue,
   type TodoEditorMode,
 } from "./_components/todo-editor-dialog";
-import { formatTimeStringByPreference } from "@/lib/time-format";
 
 interface CategoryWithItems extends TodoCategory {
   items: TodoItem[];
@@ -223,97 +220,103 @@ function CategoryCard({
   pendingDeleteMap,
   onTodoClick,
   onOpen,
-  onCreateTodoRequest,
   onEditTodoRequest,
-  onDeleteTodoRequest,
+  onQuickAddTodo,
   onEditCategoryRequest,
   onDeleteCategoryRequest,
-  use24Hour,
 }: {
   category: CategoryWithItems;
   pendingDeleteMap: Record<string, true>;
   onTodoClick: (todoId: string) => void;
   onOpen: (categoryId: string) => void;
-  onCreateTodoRequest: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
-  onDeleteTodoRequest: (todoId: string) => void;
+  onQuickAddTodo: (categoryId: string, text: string) => void;
   onEditCategoryRequest: (category: CategoryWithItems) => void;
   onDeleteCategoryRequest: (categoryId: string) => void;
-  use24Hour: boolean;
 }) {
   const items = category.items || [];
-  const unfinished = items.filter((item) => !item.isCompleted);
+  const [newTodoText, setNewTodoText] = React.useState("");
+
+  const submitNewTodo = () => {
+    const trimmed = newTodoText.trim();
+    if (!trimmed) {
+      return;
+    }
+    onQuickAddTodo(category._id, trimmed);
+    setNewTodoText("");
+  };
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(category._id)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(category._id);
-        }
-      }}
-      className="todo-category-card rounded-[12px] border border-[#D8DEE8] bg-[#F0F3F8] p-4 transition hover:border-[#C7CEDD]"
-    >
-      <div className="mb-3 flex items-center justify-between">
+    <div className="flex h-full flex-col">
+      <div className="group mb-1.5 flex items-center justify-between gap-2">
         <h3
-          className="font-poppins text-[24px] leading-[120%] font-semibold"
+          className="font-poppins text-[16px] leading-[120%] font-semibold"
           style={{ color: category.color }}
         >
           {category.name}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             type="button"
             aria-label={`Edit ${category.name}`}
-            className="inline-flex items-center justify-center text-[#7D8596]"
+            className="inline-flex size-5 items-center justify-center text-[#7D8596] transition hover:text-[var(--text-default)]"
             onClick={(event) => {
               event.stopPropagation();
               onEditCategoryRequest(category);
             }}
           >
-            <Pencil className="size-4" />
+            <Pencil className="size-3.5" strokeWidth={2} />
           </button>
           <button
             type="button"
             aria-label={`Delete ${category.name}`}
-            className="inline-flex items-center justify-center text-[#7D8596]"
+            className="inline-flex size-5 items-center justify-center text-[#7D8596] transition hover:text-red-500"
             onClick={(event) => {
               event.stopPropagation();
               onDeleteCategoryRequest(category._id);
             }}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-3.5" strokeWidth={2} />
           </button>
-          <span
-            className="font-poppins inline-flex min-w-[26px] items-center justify-center rounded-full px-1.5 py-0.5 text-[14px] leading-[120%] font-medium text-white"
-            style={{ backgroundColor: category.color }}
-          >
-            {unfinished.length}
-          </span>
         </div>
       </div>
 
-      <div className="space-y-2">
-        {items.slice(0, 3).map((item) => {
-          const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
-          const isChecked = item.isCompleted || isPendingDelete;
-          const { isDateOnlyOverdue } = getScheduledOffsetMeta(
-            item.scheduledDate,
-            item.scheduledTime,
-          );
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpen(category._id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen(category._id);
+          }
+        }}
+        className="flex h-full min-h-[180px] flex-col rounded-[18px] bg-[#EEF0F4] p-3 transition hover:bg-[#E7EAF0]"
+      >
+        <div className="space-y-2">
+          {items.slice(0, 5).map((item) => {
+            const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
+            const isChecked = item.isCompleted || isPendingDelete;
+            const { isDateOnlyOverdue } = getScheduledOffsetMeta(
+              item.scheduledDate,
+              item.scheduledTime,
+            );
+            const hasSchedule = Boolean(
+              item.scheduledDate || item.scheduledTime,
+            );
+            const hasAlarm = hasTodoAlarmConfigured(item);
+            const hasRepeat = Boolean(item.repeat);
 
-          return (
-            <div
-              key={item._id}
-              className="flex justify-between gap-2 text-[18px] text-[var(--text-default)]"
-            >
-              <div className="space-x-2">
+            return (
+              <div
+                key={item._id}
+                className="flex items-center gap-2 text-[14px]"
+              >
                 <TodoStatusCircleButton
                   checked={isChecked}
                   checkedColor={category.color || "#38A8E8"}
+                  uncheckedColor="var(--light-gray2, #D5D5D5)"
+                  className="size-5"
                   onClick={(event) => {
                     event.stopPropagation();
                     onTodoClick(item._id);
@@ -325,9 +328,9 @@ function CategoryCard({
                   }
                 />
                 <span
-                  className={`${
+                  className={`min-w-0 flex-1 truncate font-poppins ${
                     isChecked
-                      ? "text-[var(--text-muted)] "
+                      ? "text-[var(--text-muted)] line-through"
                       : isDateOnlyOverdue
                         ? "font-medium text-red-500"
                         : "text-[var(--text-default)]"
@@ -335,85 +338,70 @@ function CategoryCard({
                 >
                   {item.text}
                 </span>
-              </div>
-              {isChecked ? (
-                <button
-                  type="button"
-                  aria-label={`Delete ${item.text}`}
-                  className="inline-flex items-center justify-center text-[#B5BBC8]"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteTodoRequest(item._id);
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              ) : (
-                <div className=" text-end text-[#B5BBC8]">
+                <div className="flex shrink-0 items-center gap-1.5 text-[#B5BBC8]">
+                  {hasSchedule ? (
+                    <CalendarClock className="size-4" strokeWidth={1.8} />
+                  ) : null}
+                  {hasAlarm ? (
+                    <Bell className="size-4" strokeWidth={1.8} />
+                  ) : null}
+                  {hasRepeat ? (
+                    <Repeat2 className="size-4" strokeWidth={1.8} />
+                  ) : null}
                   <button
                     type="button"
                     aria-label={`Edit ${item.text}`}
-                    className="inline-flex items-center justify-center hover:bg-gray-300 p-2  rounded-full hover:text-white hover:shadow-md focus:outline-none hover:focus:ring-10"
+                    className="inline-flex items-center justify-center"
                     onClick={(event) => {
                       event.stopPropagation();
                       onEditTodoRequest(category._id, item._id);
                     }}
                   >
-                    <SlidersHorizontal className="size-4" />
+                    <SlidersHorizontal
+                      className="size-4"
+                      strokeWidth={1.8}
+                    />
                   </button>
-                  <div>
-                    {item.scheduledDate ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                        <CalendarDays className="size-3.5" />
-                        {format(new Date(item.scheduledDate), "dd MMM")}
-                      </span>
-                    ) : null}
-                    {item.scheduledTime ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                        <Clock3 className="size-3.5" />
-                        {formatTimeStringByPreference(
-                          item.scheduledTime,
-                          use24Hour,
-                        )}
-                      </span>
-                    ) : null}
-                    {/* {hasTodoAlarmConfigured(item) ? (
-                      <Bell className="size-3.5 cursor-pointer" />
-                    ) : null}
-                    {item.repeat ? (
-                      <Repeat2 className="size-3.5 cursor-pointer" />
-                    ) : null} */}
-                  </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+
+          <div
+            className="flex items-center gap-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="inline-flex size-5 shrink-0" aria-hidden="true" />
+            <input
+              type="text"
+              value={newTodoText}
+              onChange={(event) => setNewTodoText(event.target.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitNewTodo();
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
+              placeholder="New todo"
+              aria-label={`Add todo to ${category.name}`}
+              className="font-poppins flex-1 border-none bg-transparent text-[14px] text-[var(--text-default)] placeholder:text-[#B5BBC8] focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {items.length > 5 ? (
+          <p className="font-poppins mt-2 pl-7 text-[12px] leading-none text-[#9AA2B2]">
+            +{items.length - 5}
+          </p>
+        ) : null}
       </div>
-
-      <button
-        type="button"
-        className="mt-3 inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-[13px] text-[var(--text-muted)]"
-        onClick={(event) => {
-          event.stopPropagation();
-          onCreateTodoRequest(category._id);
-        }}
-      >
-        <Plus className="size-3.5" />
-        Add todo
-      </button>
-
-      {items.length > 3 ? (
-        <p className="font-poppins mt-1 text-[14px] leading-[120%] text-[#9AA2B2]">
-          +{items.length - 3}
-        </p>
-      ) : null}
     </div>
   );
 }
 
 function TodosPageContent() {
-  const { preferences } = useAppState();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -1041,6 +1029,21 @@ function TodosPageContent() {
     setTodoEditorOpen(true);
   }, []);
 
+  const handleQuickAddTodo = React.useCallback(
+    (categoryId: string, text: string) => {
+      createTodoMutation.mutate({
+        categoryId,
+        text,
+        scheduledDate: null,
+        scheduledTime: null,
+        alarm: null,
+        alarmPreset: "none",
+        repeat: null,
+      });
+    },
+    [createTodoMutation],
+  );
+
   const openEditTodoEditor = React.useCallback(
     (categoryId: string, todoId: string) => {
       setSelectedCategoryId(categoryId);
@@ -1154,37 +1157,25 @@ function TodosPageContent() {
   return (
     <div className="todos-page space-y-4">
       <section className="todos-shell rounded-[30px] border border-[#E0E4EC] bg-[#F4F6FA] p-4 sm:p-5">
-        <div className="mb-3 flex items-center justify-end">
-          <AddCategoryDialog
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            newCategoryName={newCategoryName}
-            onNewCategoryNameChange={setNewCategoryName}
-            newCategoryColor={newCategoryColor}
-            onNewCategoryColorChange={setNewCategoryColor}
-            onCreate={() => createCategoryMutation.mutate()}
-            isCreating={createCategoryMutation.isPending}
-          />
-          <AddCategoryDialog
-            open={editCategoryOpen}
-            onOpenChange={(open) => {
-              setEditCategoryOpen(open);
-              if (!open) {
-                setEditCategoryId(null);
-              }
-            }}
-            newCategoryName={editCategoryName}
-            onNewCategoryNameChange={setEditCategoryName}
-            newCategoryColor={editCategoryColor}
-            onNewCategoryColorChange={setEditCategoryColor}
-            onCreate={() => updateCategoryMutation.mutate()}
-            isCreating={updateCategoryMutation.isPending}
-            title="Edit Category"
-            submitLabel="Save"
-            pendingLabel="Saving..."
-            showDefaultTrigger={false}
-          />
-        </div>
+        <AddCategoryDialog
+          open={editCategoryOpen}
+          onOpenChange={(open) => {
+            setEditCategoryOpen(open);
+            if (!open) {
+              setEditCategoryId(null);
+            }
+          }}
+          newCategoryName={editCategoryName}
+          onNewCategoryNameChange={setEditCategoryName}
+          newCategoryColor={editCategoryColor}
+          onNewCategoryColorChange={setEditCategoryColor}
+          onCreate={() => updateCategoryMutation.mutate()}
+          isCreating={updateCategoryMutation.isPending}
+          title="Edit Category"
+          submitLabel="Save"
+          pendingLabel="Saving..."
+          showDefaultTrigger={false}
+        />
 
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="">
@@ -1196,25 +1187,31 @@ function TodosPageContent() {
             {categoriesQuery.isLoading ? (
               <SectionLoading rows={4} />
             ) : scheduledItems.length ? (
-              <div className="todos-scheduled-panel rounded-[12px] border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                <div
-                  className="mb-3 grid grid-cols-3 rounded-full border border-[var(--border)] bg-[var(--ui-tabs-list-bg)] p-1 text-[14px]"
-                  style={{ boxShadow: "0px 4px 4px 0px rgba(0, 0, 0, 0)" }}
-                >
-                  {SCHEDULED_TAB_OPTIONS.map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setScheduledStatusTab(value)}
-                      className={`rounded-full px-2 py-1 capitalize transition ${
-                        scheduledStatusTab === value
-                          ? "bg-[var(--ui-tabs-trigger-active-bg)] font-medium text-[var(--ui-tabs-trigger-active-text)]"
-                          : "text-[var(--ui-tabs-trigger-text)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+              <div className="todos-scheduled-panel rounded-[20px] bg-[#EEF0F4] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-5 text-[15px]">
+                    {SCHEDULED_TAB_OPTIONS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setScheduledStatusTab(value)}
+                        className={`font-poppins relative pb-1 transition ${
+                          scheduledStatusTab === value
+                            ? "font-semibold text-[var(--text-default)] after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-[var(--text-default)]"
+                            : "font-medium text-[#B5BBC8]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Sort scheduled todos"
+                    className="inline-flex size-8 items-center justify-center  text-[#7D8596] transition hover:bg-[var(--surface-1)]"
+                  >
+                    <ListFilter className="size-4" strokeWidth={1.8} />
+                  </button>
                 </div>
 
                 <div
@@ -1295,7 +1292,7 @@ function TodosPageContent() {
 
                 <div className="space-y-2">
                   {visibleScheduledItems.length ? (
-                    visibleScheduledItems.map((todo) => {
+                    visibleScheduledItems.slice(0, 5).map((todo) => {
                       const category = getTodoCategoryMeta(
                         todo,
                         categoryMetaLookup,
@@ -1365,21 +1362,38 @@ function TodosPageContent() {
                               <Trash2 className="size-4" />
                             </button>
                           ) : (
-                            <div className="flex shrink-0 items-center gap-1 text-[var(--text-muted)]">
-                              <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[var(--border)] p-[2px]">
+                            <div className="flex shrink-0 items-center gap-2 text-[#B5BBC8]">
+                              {hasTodoAlarmConfigured(todo) ? (
                                 <Bell
-                                  className={`size-4 cursor-pointer ${
-                                    hasTodoAlarmConfigured(todo)
-                                      ? "opacity-100"
-                                      : "opacity-35"
-                                  }`}
+                                  className="size-[18px]"
+                                  strokeWidth={1.8}
                                 />
-                              </span>
-                              <span className="inline-flex items-center justify-center rounded-full border-[1.1px] border-[var(--border)] p-[2px]">
+                              ) : null}
+                              {todo.repeat ? (
                                 <Repeat2
-                                  className={`size-4 cursor-pointer ${todo.repeat ? "opacity-100" : "opacity-35"}`}
+                                  className="size-[18px]"
+                                  strokeWidth={1.8}
                                 />
-                              </span>
+                              ) : null}
+                              <button
+                                type="button"
+                                aria-label={`Edit ${todo.text}`}
+                                className="inline-flex items-center justify-center"
+                                onClick={() => {
+                                  const catId =
+                                    typeof todo.categoryId === "string"
+                                      ? todo.categoryId
+                                      : todo.categoryId?._id;
+                                  if (catId) {
+                                    openEditTodoEditor(catId, todo._id);
+                                  }
+                                }}
+                              >
+                                <SlidersHorizontal
+                                  className="size-[18px]"
+                                  strokeWidth={1.8}
+                                />
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1390,6 +1404,11 @@ function TodosPageContent() {
                       No todo found for this filter.
                     </p>
                   )}
+                  {visibleScheduledItems.length > 5 ? (
+                    <p className="font-poppins pl-[72px] text-[13px] leading-none text-[#9AA2B2]">
+                      +{visibleScheduledItems.length - 5}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1403,7 +1422,7 @@ function TodosPageContent() {
           <div className="space-y-4">
             {categoriesQuery.isLoading ? (
               <SectionLoading rows={8} />
-            ) : paged.items.length ? (
+            ) : (
               <>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {paged.items.map((category) => (
@@ -1411,37 +1430,54 @@ function TodosPageContent() {
                       key={category._id}
                       category={category}
                       pendingDeleteMap={scheduledAutoDeleteMap}
-                      use24Hour={preferences.use24Hour}
                       onOpen={(categoryId) => {
                         setSelectedCategoryId(categoryId);
                         setCategoryDetailOpen(true);
                       }}
-                      onCreateTodoRequest={openCreateTodoEditor}
                       onEditTodoRequest={openEditTodoEditor}
-                      onDeleteTodoRequest={(todoId) => {
-                        setDeleteTargetTodoId(todoId);
-                        setDeleteConfirmOpen(true);
-                      }}
+                      onQuickAddTodo={handleQuickAddTodo}
+                      onTodoClick={handleTodoClickDelete}
                       onEditCategoryRequest={openEditCategoryDialog}
                       onDeleteCategoryRequest={(categoryId) => {
                         setDeleteTargetCategoryId(categoryId);
                         setDeleteCategoryConfirmOpen(true);
                       }}
-                      onTodoClick={handleTodoClickDelete}
                     />
                   ))}
+
+                  <div className="flex h-full flex-col">
+                    <h3 className="mb-1.5 text-[16px] leading-[120%] opacity-0">
+                      Add
+                    </h3>
+                    <AddCategoryDialog
+                      open={addOpen}
+                      onOpenChange={setAddOpen}
+                      newCategoryName={newCategoryName}
+                      onNewCategoryNameChange={setNewCategoryName}
+                      newCategoryColor={newCategoryColor}
+                      onNewCategoryColorChange={setNewCategoryColor}
+                      onCreate={() => createCategoryMutation.mutate()}
+                      isCreating={createCategoryMutation.isPending}
+                      trigger={
+                        <button
+                          type="button"
+                          aria-label="Add category"
+                          className="flex h-full min-h-[180px] w-full items-center justify-center rounded-[18px] border-2 border-dashed border-[#C7CEDD] text-[#9BA1AC] transition hover:border-[#A8B0C1] hover:bg-[var(--surface-1)]"
+                        >
+                          <Plus className="size-6" strokeWidth={1.8} />
+                        </button>
+                      }
+                    />
+                  </div>
                 </div>
-                <PaginationControls
-                  page={paged.page}
-                  totalPages={paged.totalPages}
-                  onPageChange={setPage}
-                />
+                {paged.totalPages > 1 ? (
+                  <PaginationControls
+                    page={paged.page}
+                    totalPages={paged.totalPages}
+                    onPageChange={setPage}
+                  />
+                ) : null}
               </>
-            ) : (
-              <EmptyState
-                title="No categories"
-                description="Click + to create your first category."
-              />
             )}
           </div>
         </div>

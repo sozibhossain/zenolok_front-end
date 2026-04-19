@@ -37,6 +37,8 @@ type EventSummaryCardProps = {
   isUsersLoading: boolean;
   isUsersError: boolean;
   isParticipantsSaving: boolean;
+  onOpenAlarmModal?: () => void;
+  onOpenRepeatModal?: () => void;
 };
 
 export function EventSummaryCard({
@@ -54,6 +56,8 @@ export function EventSummaryCard({
   isUsersLoading,
   isUsersError,
   isParticipantsSaving,
+  onOpenAlarmModal,
+  onOpenRepeatModal,
 }: EventSummaryCardProps) {
   const startsAt = new Date(event.startTime);
   const endsAt = new Date(event.endTime);
@@ -253,23 +257,30 @@ export function EventSummaryCard({
               )}
 
               <div className="flex shrink-0 items-center gap-2">
-                {hasAlarm ? (
-                  <button
-                    type="button"
-                    className="flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
-                    aria-label="Notification"
-                  >
-                    <Bell className="size-4" />
-                  </button>
-                ) : null}
-                {hasRepeat ? (
-                  <div
-                    className="flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
-                    aria-label="Repeats across dates"
-                  >
-                    <RefreshCw className="size-4" />
-                  </div>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={onOpenAlarmModal}
+                  className={`flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition hover:bg-[var(--surface-3)] ${
+                    hasAlarm
+                      ? "text-[var(--text-default)]"
+                      : "text-[var(--text-muted)] opacity-60"
+                  }`}
+                  aria-label="Set alarm"
+                >
+                  <Bell className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenRepeatModal}
+                  className={`flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition hover:bg-[var(--surface-3)] ${
+                    hasRepeat
+                      ? "text-[var(--text-default)]"
+                      : "text-[var(--text-muted)] opacity-60"
+                  }`}
+                  aria-label="Set repeat"
+                >
+                  <RefreshCw className="size-4" />
+                </button>
                 {todoCount > 0 ? (
                   <div
                     className="relative flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"

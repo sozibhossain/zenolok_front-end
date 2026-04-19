@@ -131,7 +131,7 @@ export interface EventData {
   isAllDay: boolean;
   location?: string;
   participants: Array<string | UserProfile>;
-  reminder?: string;
+  reminder?: string | null;
   recurrence: "once" | "daily" | "weekly" | "monthly" | "yearly";
   notes?: string;
   personalNotes?: string;

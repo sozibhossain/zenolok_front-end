@@ -4,10 +4,22 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronLeft,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
+import {
+  formatAlarmPresetSummary,
+  getPrimaryAlarmOffset,
+  resolveAlarmPresetOptions,
+} from "@/lib/alarm-presets";
 import { useAppState } from "@/components/providers/app-state-provider";
 import {
   brickApi,
@@ -194,6 +206,15 @@ export default function EventDetailsPage() {
     queryKey: queryKeys.profile,
     queryFn: userApi.getProfile,
   });
+  const alarmPresetOptions = React.useMemo(
+    () =>
+      resolveAlarmPresetOptions(
+        profileQuery.data?.preferences?.alarmPresetOptions,
+      ),
+    [profileQuery.data?.preferences?.alarmPresetOptions],
+  );
+  const [alarmModalOpen, setAlarmModalOpen] = useState(false);
+  const [repeatModalOpen, setRepeatModalOpen] = useState(false);
   const editHasDateRange = Boolean(editStartDate && editEndDate);
   const editIsSingleDayEvent = Boolean(
     editStartDate && editEndDate && editStartDate === editEndDate,
@@ -785,6 +806,8 @@ export default function EventDetailsPage() {
           isUsersLoading={usersQuery.isLoading}
           isUsersError={usersQuery.isError}
           isParticipantsSaving={updateEventMutation.isPending}
+          onOpenAlarmModal={() => setAlarmModalOpen(true)}
+          onOpenRepeatModal={() => setRepeatModalOpen(true)}
         />
 
         <div className="mt-3 space-y-3">
@@ -932,6 +955,153 @@ export default function EventDetailsPage() {
           </Card>
         </div>
       </section>
+
+      <Dialog open={alarmModalOpen} onOpenChange={setAlarmModalOpen}>
+        <DialogContent className="max-w-[380px] rounded-[26px] border-[var(--ui-popover-border)] bg-[var(--ui-popover-bg)] p-4 text-[var(--text-default)]">
+          <div className="space-y-3">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 text-[var(--text-default)]"
+              onClick={() => setAlarmModalOpen(false)}
+            >
+              <ChevronLeft className="size-4" />
+              <span className="text-[24px] leading-[120%]">Select Alarm</span>
+            </button>
+
+            <div className="space-y-2 rounded-[22px] bg-[var(--surface-2)] p-3">
+              {alarmPresetOptions.map((option) => {
+                const active =
+                  option.key === "none"
+                    ? !event.reminder
+                    : false;
+                const isSelectable =
+                  option.key === "none" ||
+                  option.offsetsInMinutes.length > 0;
+
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      if (!isSelectable) {
+                        return;
+                      }
+
+                      if (option.key === "none") {
+                        updateEventMutation.mutate({ reminder: null });
+                        setAlarmModalOpen(false);
+                        return;
+                      }
+
+                      const offsetMinutes = getPrimaryAlarmOffset(
+                        option.key,
+                        alarmPresetOptions,
+                      );
+                      const startAt = new Date(event.startTime);
+
+                      if (
+                        offsetMinutes === null ||
+                        Number.isNaN(startAt.getTime())
+                      ) {
+                        toast.error("Unable to compute reminder time");
+                        return;
+                      }
+
+                      const reminderAt = new Date(
+                        startAt.getTime() - offsetMinutes * 60 * 1000,
+                      );
+                      updateEventMutation.mutate({
+                        reminder: reminderAt.toISOString(),
+                      });
+                      setAlarmModalOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition",
+                      active
+                        ? "border-[#31C65B] bg-[color:rgba(49,198,91,0.10)]"
+                        : "border-transparent bg-[var(--surface-2)] hover:border-[var(--border)]",
+                      !isSelectable && "opacity-60",
+                    )}
+                    disabled={!isSelectable}
+                  >
+                    <div className="min-w-0">
+                      <span className="font-poppins text-[20px] leading-[120%] font-medium text-[var(--text-default)]">
+                        {option.label}
+                      </span>
+                      <p className="mt-1 text-[12px] leading-[140%] text-[var(--text-muted)]">
+                        {option.description}
+                      </p>
+                      <p className="mt-2 text-[12px] font-medium text-[var(--text-default)]">
+                        {formatAlarmPresetSummary(
+                          option.key,
+                          alarmPresetOptions,
+                        )}
+                      </p>
+                    </div>
+                    {active ? (
+                      <CheckCircle2 className="size-5 text-[#31C65B]" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={repeatModalOpen} onOpenChange={setRepeatModalOpen}>
+        <DialogContent className="max-w-[380px] rounded-[26px] border-[var(--ui-popover-border)] bg-[var(--ui-popover-bg)] p-4 text-[var(--text-default)]">
+          <div className="space-y-3">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 text-[var(--text-default)]"
+              onClick={() => setRepeatModalOpen(false)}
+            >
+              <ChevronLeft className="size-4" />
+              <span className="text-[24px] leading-[120%]">Repeat</span>
+            </button>
+
+            <div className="space-y-2 rounded-[22px] bg-[var(--surface-2)] p-3">
+              {(
+                [
+                  { value: "once", label: "Does not repeat" },
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "yearly", label: "Yearly" },
+                ] as const
+              ).map((option) => {
+                const active = event.recurrence === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      updateEventMutation.mutate({
+                        recurrence: option.value,
+                      });
+                      setRepeatModalOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition",
+                      active
+                        ? "border-[#31C65B] bg-[color:rgba(49,198,91,0.10)]"
+                        : "border-transparent bg-[var(--surface-2)] hover:border-[var(--border)]",
+                    )}
+                  >
+                    <span className="font-poppins text-[18px] leading-[120%] font-medium text-[var(--text-default)]">
+                      {option.label}
+                    </span>
+                    {active ? (
+                      <CheckCircle2 className="size-5 text-[#31C65B]" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -33,7 +33,7 @@ function getCircleStyle(
 
 function getCircleClassName(checked: boolean, className?: string) {
   return cn(
-    "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2 bg-[var(--ui-checkbox-bg)] p-[2px] transition-colors",
+    "inline-flex size-6 shrink-0 items-center justify-center rounded-full border bg-transparent p-[2px] transition-colors",
     checked ? null : "border-[var(--ui-checkbox-border)]",
     className,
   );
