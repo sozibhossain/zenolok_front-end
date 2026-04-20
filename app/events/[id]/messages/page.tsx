@@ -22,7 +22,15 @@ import { queryKeys } from "@/lib/query-keys";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   formatMessageStamp,
   getMessageAttachmentKind,
@@ -84,6 +92,7 @@ export default function EventMessagesPage() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [activeFilter, setActiveFilter] = useState<MessageFilter>("all");
+  const [deleteTargetMessageId, setDeleteTargetMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
     null,
   );
@@ -194,6 +203,7 @@ export default function EventMessagesPage() {
         (previous = []) =>
           previous.filter((message) => message._id !== messageId),
       );
+      setDeleteTargetMessageId(null);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to delete message");
@@ -266,18 +276,15 @@ export default function EventMessagesPage() {
       return;
     }
 
-    toast("Delete this message?", {
-      description: "This will remove it from the event chat.",
-      action: {
-        label: "Delete",
-        onClick: () => deleteMessageMutation.mutate(messageId),
-      },
-      cancel: {
-        label: "Cancel",
-        onClick: () => undefined,
-      },
-      duration: 10000,
-    });
+    setDeleteTargetMessageId(messageId);
+  };
+
+  const handleConfirmDeleteMessage = () => {
+    if (!deleteTargetMessageId || deleteMessageMutation.isPending) {
+      return;
+    }
+
+    deleteMessageMutation.mutate(deleteTargetMessageId);
   };
 
   React.useEffect(() => {
@@ -584,6 +591,48 @@ export default function EventMessagesPage() {
           </div>
         </Card>
       </section>
+
+      <Dialog
+        open={Boolean(deleteTargetMessageId)}
+        onOpenChange={(open) => {
+          if (!open && !deleteMessageMutation.isPending) {
+            setDeleteTargetMessageId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm rounded-[22px] border border-[var(--ui-dialog-border)] bg-[var(--ui-dialog-bg)] p-5 text-[var(--text-default)]">
+          <DialogHeader>
+            <DialogTitle className="!text-[24px] font-medium text-[var(--text-strong)]">
+              Delete this message?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[14px] leading-[1.4] text-[var(--text-muted)]">
+            This will remove it from the event chat.
+          </p>
+          <DialogFooter className="mt-3 flex-row justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteTargetMessageId(null)}
+              disabled={deleteMessageMutation.isPending}
+              className="!text-[14px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDeleteMessage}
+              disabled={deleteMessageMutation.isPending}
+              className="!text-[14px]"
+            >
+              {deleteMessageMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

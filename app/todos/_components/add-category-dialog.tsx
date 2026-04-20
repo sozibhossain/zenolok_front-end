@@ -63,7 +63,7 @@ export function AddCategoryDialog({
       ) : null}
       <DialogContent className="max-w-5xl rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-6">
         <DialogHeader className="mb-4">
-          <DialogTitle className="text-center text-[40px] text-[var(--text-strong)]">{title}</DialogTitle>
+          <DialogTitle className="text-center text-[24px] text-[var(--text-strong)]">{title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -78,13 +78,13 @@ export function AddCategoryDialog({
           </div>
 
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
-            <div className="grid grid-cols-10 gap-2 sm:gap-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(2rem,1fr))] justify-items-center gap-2 sm:grid-cols-10 sm:gap-3">
               {colorPalette.map((color) => (
                 <button
                   type="button"
                   key={color}
                   onClick={() => onNewCategoryColorChange(color)}
-                  className={`size-8 rounded-full border-2 sm:size-10 ${
+                  className={`size-8 rounded-full border-2 sm:size-8 ${
                     newCategoryColor === color
                       ? "border-[var(--text-strong)]"
                       : "border-transparent"

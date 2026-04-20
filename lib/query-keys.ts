@@ -1,6 +1,8 @@
 export const queryKeys = {
   profile: ["profile"] as const,
   bricks: ["bricks"] as const,
+  brick: (id: string) => ["brick", id] as const,
+  myBrickInvitations: ["my-brick-invitations"] as const,
   categories: ["categories"] as const,
   categoryItems: (categoryId: string) => ["category-items", categoryId] as const,
   categoriesWithItems: ["categories-with-items"] as const,

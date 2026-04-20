@@ -121,6 +121,30 @@ html {
   --ui-popover-bg: #f4f6fa;
   --ui-popover-border: #dde4ef;
   --ui-popover-shadow: 0 14px 35px rgba(18, 22, 31, 0.14);
+  --notification-card-read-bg: #fafbfd;
+  --notification-card-read-border: #eef2f7;
+  --notification-card-unread-bg: #f8fafd;
+  --notification-card-unread-border: #e3e8f1;
+  --notification-card-hover-bg: #f4f7fb;
+  --notification-card-hover-border: #d6ddea;
+  --notification-dot-read-bg: #e3e8f2;
+  --notification-dot-read-border: #e1e6ee;
+  --notification-dot-unread-border: #d8dee9;
+  --notification-error-text: #b14e4e;
+  --notification-empty-text: #7d8597;
+  --todo-panel-bg: #eef0f4;
+  --todo-card-bg: #eef0f4;
+  --todo-card-hover-bg: #e7eaf0;
+  --todo-action-icon: #7d8596;
+  --todo-muted-icon: #b5bbc8;
+  --todo-muted-text: #9aa2b2;
+  --todo-circle-unchecked: #d5d5d5;
+  --todo-add-border: #c7cedd;
+  --todo-add-hover-border: #a8b0c1;
+  --todo-filter-inactive-bg: #cbd7e9;
+  --todo-filter-inactive-text: #ffffff;
+  --home-calendar-selected-day-bg: #d3d5db;
+  --home-calendar-selected-day-text: #1f2633;
   --ui-switch-off: #dfdfe3;
   --ui-switch-off-border: #d6d6db;
   --ui-switch-on: #34c759;
@@ -270,6 +294,30 @@ body.theme-dark {
   --ui-popover-bg: #121d2e;
   --ui-popover-border: #2d405d;
   --ui-popover-shadow: 0 18px 40px rgba(2, 7, 15, 0.65);
+  --notification-card-read-bg: #162236;
+  --notification-card-read-border: #2b3b55;
+  --notification-card-unread-bg: #1b2a40;
+  --notification-card-unread-border: #3a5478;
+  --notification-card-hover-bg: #22344f;
+  --notification-card-hover-border: #54719a;
+  --notification-dot-read-bg: #31435f;
+  --notification-dot-read-border: #435978;
+  --notification-dot-unread-border: #c7d7ee;
+  --notification-error-text: #ff9b9b;
+  --notification-empty-text: #9fb0cb;
+  --todo-panel-bg: #172233;
+  --todo-card-bg: #172233;
+  --todo-card-hover-bg: #21324b;
+  --todo-action-icon: #9fb0cb;
+  --todo-muted-icon: #8fa0bd;
+  --todo-muted-text: #93a6c5;
+  --todo-circle-unchecked: #6f819d;
+  --todo-add-border: #435978;
+  --todo-add-hover-border: #5b759d;
+  --todo-filter-inactive-bg: #22324a;
+  --todo-filter-inactive-text: #c5d1e5;
+  --home-calendar-selected-day-bg: #31425e;
+  --home-calendar-selected-day-text: #f3f7ff;
   --ui-switch-off: #4b5668;
   --ui-switch-off-border: #5a6577;
   --ui-switch-on: #34c759;
@@ -384,6 +432,44 @@ body.theme-dark [data-sonner-toaster] [data-sonner-toast] [data-description] {
   box-shadow: var(--ui-popover-shadow) !important;
 }
 
+.home-hover-reveal {
+  position: relative;
+}
+
+.home-hover-reveal::after {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  max-width: min(260px, calc(100vw - 2rem));
+  width: max-content;
+  padding: 4px 8px;
+  border: 1px solid var(--ui-popover-border);
+  border-radius: 8px;
+  background: var(--ui-popover-bg);
+  box-shadow: var(--ui-popover-shadow);
+  color: var(--text-strong);
+  content: attr(data-full-text);
+  font-size: 13px;
+  line-height: 1.25;
+  opacity: 0;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 150ms ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.home-hover-reveal:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
 .home-page .home-calendar-shell,
 .events-page .events-content-shell,
 .todos-page .todos-shell,
@@ -409,6 +495,18 @@ body.theme-dark [data-sonner-toaster] [data-sonner-toast] [data-description] {
 .todos-page .todo-category-card {
   background: var(--surface-3);
   border-color: var(--border);
+}
+
+.todos-page .todos-scheduled-panel {
+  background: var(--todo-panel-bg);
+}
+
+.todos-page .todo-category-card {
+  background: var(--todo-card-bg);
+}
+
+.todos-page .todo-category-card:hover {
+  background: var(--todo-card-hover-bg);
 }
 
 .home-page .home-add-event-btn,

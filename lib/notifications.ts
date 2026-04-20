@@ -17,7 +17,7 @@ export function isMessageNotification(notification: Pick<NotificationData, "type
 export function getNotificationHref(
   notification: Pick<
     NotificationData,
-    "type" | "eventId" | "messageId" | "todoId"
+    "type" | "eventId" | "messageId" | "todoId" | "brickId"
   >,
 ) {
   switch (notification.type) {
@@ -42,6 +42,12 @@ export function getNotificationHref(
     case "participant_added":
       return notification.eventId ? `/events/${notification.eventId}` : "/events";
 
+    case "brick_invitation_received":
+      return "/bricks/invitations";
+
+    case "brick_invitation_accepted":
+      return "/settings";
+
     default:
       if (notification.eventId && notification.messageId) {
         return `/events/${notification.eventId}/messages?messageId=${notification.messageId}`;
@@ -53,6 +59,10 @@ export function getNotificationHref(
 
       if (notification.todoId) {
         return `/todos?todoId=${notification.todoId}`;
+      }
+
+      if (notification.brickId) {
+        return "/settings";
       }
 
       return null;

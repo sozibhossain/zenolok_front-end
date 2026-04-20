@@ -57,6 +57,14 @@ export interface UserListData {
   };
 }
 
+export interface BrickInvitation {
+  _id: string;
+  email: string;
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string;
+}
+
 export interface Brick {
   _id: string;
   name: string;
@@ -64,7 +72,34 @@ export interface Brick {
   icon: string;
   participants: string[];
   members?: string[];
+  participantUsers?: Array<{
+    _id: string;
+    name?: string;
+    email?: string;
+    username?: string;
+    avatar?: { url?: string };
+  }>;
+  pendingInvitations?: BrickInvitation[];
   createdBy: string;
+}
+
+export interface MyBrickInvitation {
+  _id: string;
+  token: string;
+  invitedAt: string;
+  expiresAt: string;
+  brick: {
+    _id: string;
+    name: string;
+    color: string;
+    icon: string;
+    createdBy: {
+      _id: string;
+      name?: string;
+      email?: string;
+      avatar?: { url?: string };
+    } | string;
+  };
 }
 
 export interface TodoCategory {
@@ -191,6 +226,7 @@ export interface NotificationData {
   eventId?: string;
   messageId?: string;
   todoId?: string;
+  brickId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -318,14 +354,28 @@ export const userApi = {
 export const brickApi = {
   getAll: () => unwrap<Brick[]>(apiClient.get("/bricks")),
   getById: (id: string) => unwrap<Brick>(apiClient.get(`/bricks/${id}`)),
-  create: (payload: Pick<Brick, "name" | "color" | "icon"> & { members?: string[] }) =>
+  create: (payload: Pick<Brick, "name" | "color" | "icon">) =>
     unwrap<Brick>(apiClient.post("/bricks", payload)),
   update: (
     id: string,
-    payload: Partial<Pick<Brick, "name" | "color" | "icon">> & { members?: string[] },
+    payload: Partial<Pick<Brick, "name" | "color" | "icon">>,
   ) =>
     unwrap<Brick>(apiClient.patch(`/bricks/${id}`, payload)),
   delete: (id: string) => unwrap<null>(apiClient.delete(`/bricks/${id}`)),
+  inviteCollaborator: (brickId: string, email: string) =>
+    unwrap<Brick>(apiClient.post(`/bricks/${brickId}/invitations`, { email })),
+  revokeInvitation: (brickId: string, invitationId: string) =>
+    unwrap<Brick>(
+      apiClient.delete(`/bricks/${brickId}/invitations/${invitationId}`),
+    ),
+  removeCollaborator: (brickId: string, userId: string) =>
+    unwrap<Brick>(apiClient.delete(`/bricks/${brickId}/collaborators/${userId}`)),
+  listMyInvitations: () =>
+    unwrap<MyBrickInvitation[]>(apiClient.get("/bricks/invitations/mine")),
+  acceptInvitation: (token: string) =>
+    unwrap<Brick>(apiClient.post("/bricks/invitations/accept", { token })),
+  declineInvitation: (token: string) =>
+    unwrap<null>(apiClient.post("/bricks/invitations/decline", { token })),
 };
 
 export const todoCategoryApi = {

@@ -7,6 +7,7 @@ import { differenceInCalendarDays, startOfDay } from "date-fns";
 import {
   Bell,
   CalendarClock,
+  Check,
   ListFilter,
   Pencil,
   Plus,
@@ -222,6 +223,7 @@ function CategoryCard({
   onOpen,
   onEditTodoRequest,
   onQuickAddTodo,
+  onInlineUpdateTodo,
   onEditCategoryRequest,
   onDeleteCategoryRequest,
 }: {
@@ -231,11 +233,17 @@ function CategoryCard({
   onOpen: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
   onQuickAddTodo: (categoryId: string, text: string) => void;
+  onInlineUpdateTodo: (categoryId: string, todoId: string, text: string) => void;
   onEditCategoryRequest: (category: CategoryWithItems) => void;
   onDeleteCategoryRequest: (categoryId: string) => void;
 }) {
   const items = category.items || [];
   const [newTodoText, setNewTodoText] = React.useState("");
+  const [editingTextMap, setEditingTextMap] = React.useState<Record<string, string>>({});
+
+  const getEditValue = (item: TodoItem) => editingTextMap[item._id] ?? item.text;
+  const isDirty = (item: TodoItem) =>
+    (editingTextMap[item._id] ?? item.text) !== item.text;
 
   const submitNewTodo = () => {
     const trimmed = newTodoText.trim();
@@ -259,7 +267,7 @@ function CategoryCard({
           <button
             type="button"
             aria-label={`Edit ${category.name}`}
-            className="inline-flex size-5 items-center justify-center text-[#7D8596] transition hover:text-[var(--text-default)]"
+            className="inline-flex size-5 items-center justify-center text-[var(--todo-action-icon)] transition hover:text-[var(--text-default)]"
             onClick={(event) => {
               event.stopPropagation();
               onEditCategoryRequest(category);
@@ -270,7 +278,7 @@ function CategoryCard({
           <button
             type="button"
             aria-label={`Delete ${category.name}`}
-            className="inline-flex size-5 items-center justify-center text-[#7D8596] transition hover:text-red-500"
+            className="inline-flex size-5 items-center justify-center text-[var(--todo-action-icon)] transition hover:text-red-500"
             onClick={(event) => {
               event.stopPropagation();
               onDeleteCategoryRequest(category._id);
@@ -291,7 +299,7 @@ function CategoryCard({
             onOpen(category._id);
           }
         }}
-        className="flex h-full min-h-[180px] flex-col rounded-[18px] bg-[#EEF0F4] p-3 transition hover:bg-[#E7EAF0]"
+        className="todo-category-card flex h-full min-h-[180px] flex-col rounded-[18px] bg-[var(--todo-card-bg)] p-3 transition hover:bg-[var(--todo-card-hover-bg)]"
       >
         <div className="space-y-2">
           {items.slice(0, 5).map((item) => {
@@ -315,7 +323,7 @@ function CategoryCard({
                 <TodoStatusCircleButton
                   checked={isChecked}
                   checkedColor={category.color || "#38A8E8"}
-                  uncheckedColor="var(--light-gray2, #D5D5D5)"
+                  uncheckedColor="var(--todo-circle-unchecked)"
                   className="size-5"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -327,41 +335,79 @@ function CategoryCard({
                       : `Delete ${item.text} after 3 seconds`
                   }
                 />
-                <span
-                  className={`min-w-0 flex-1 truncate font-poppins ${
+                <input
+                  type="text"
+                  value={getEditValue(item)}
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    setEditingTextMap((prev) => ({
+                      ...prev,
+                      [item._id]: event.target.value,
+                    }));
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter" && isDirty(item)) {
+                      onInlineUpdateTodo(category._id, item._id, getEditValue(item));
+                    }
+                    if (event.key === "Escape") {
+                      setEditingTextMap((prev) => {
+                        const next = { ...prev };
+                        delete next[item._id];
+                        return next;
+                      });
+                    }
+                  }}
+                  aria-label={`Edit text for ${item.text}`}
+                  className={`min-w-0 flex-1 truncate font-poppins border-none bg-transparent focus:outline-none ${
                     isChecked
                       ? "text-[var(--text-muted)] line-through"
                       : isDateOnlyOverdue
                         ? "font-medium text-red-500"
                         : "text-[var(--text-default)]"
                   }`}
-                >
-                  {item.text}
-                </span>
-                <div className="flex shrink-0 items-center gap-1.5 text-[#B5BBC8]">
-                  {hasSchedule ? (
-                    <CalendarClock className="size-4" strokeWidth={1.8} />
-                  ) : null}
-                  {hasAlarm ? (
-                    <Bell className="size-4" strokeWidth={1.8} />
-                  ) : null}
-                  {hasRepeat ? (
-                    <Repeat2 className="size-4" strokeWidth={1.8} />
-                  ) : null}
-                  <button
-                    type="button"
-                    aria-label={`Edit ${item.text}`}
-                    className="inline-flex items-center justify-center"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEditTodoRequest(category._id, item._id);
-                    }}
-                  >
-                    <SlidersHorizontal
-                      className="size-4"
-                      strokeWidth={1.8}
-                    />
-                  </button>
+                />
+                <div className="flex shrink-0 items-center gap-1.5 text-[var(--todo-muted-icon)]">
+                  {isDirty(item) ? (
+                    <button
+                      type="button"
+                      aria-label={`Save ${item.text}`}
+                      className="inline-flex items-center justify-center text-green-500 transition hover:text-green-600"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onInlineUpdateTodo(category._id, item._id, getEditValue(item));
+                      }}
+                    >
+                      <Check className="size-4" strokeWidth={2.5} />
+                    </button>
+                  ) : (
+                    <>
+                      {hasSchedule ? (
+                        <CalendarClock className="size-4" strokeWidth={1.8} />
+                      ) : null}
+                      {hasAlarm ? (
+                        <Bell className="size-4" strokeWidth={1.8} />
+                      ) : null}
+                      {hasRepeat ? (
+                        <Repeat2 className="size-4" strokeWidth={1.8} />
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label={`Edit ${item.text}`}
+                        className="inline-flex items-center justify-center"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEditTodoRequest(category._id, item._id);
+                        }}
+                      >
+                        <SlidersHorizontal
+                          className="size-4"
+                          strokeWidth={1.8}
+                        />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -386,13 +432,13 @@ function CategoryCard({
               onClick={(event) => event.stopPropagation()}
               placeholder="New todo"
               aria-label={`Add todo to ${category.name}`}
-              className="font-poppins flex-1 border-none bg-transparent text-[14px] text-[var(--text-default)] placeholder:text-[#B5BBC8] focus:outline-none"
+              className="font-poppins flex-1 border-none bg-transparent text-[14px] text-[var(--text-default)] placeholder:text-[var(--todo-muted-icon)] focus:outline-none"
             />
           </div>
         </div>
 
         {items.length > 5 ? (
-          <p className="font-poppins mt-2 pl-7 text-[12px] leading-none text-[#9AA2B2]">
+          <p className="font-poppins mt-2 pl-7 text-[12px] leading-none text-[var(--todo-muted-text)]">
             +{items.length - 5}
           </p>
         ) : null}
@@ -1053,6 +1099,15 @@ function TodosPageContent() {
     },
     [],
   );
+  const handleInlineUpdateTodo = React.useCallback(
+    (_categoryId: string, todoId: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      updateTodoMutation.mutate({ id: todoId, payload: { text: trimmed } });
+    },
+    [updateTodoMutation],
+  );
+
   const openEditCategoryDialog = React.useCallback(
     (category: CategoryWithItems) => {
       setEditCategoryId(category._id);
@@ -1156,7 +1211,7 @@ function TodosPageContent() {
 
   return (
     <div className="todos-page space-y-4">
-      <section className="todos-shell rounded-[30px] border border-[#E0E4EC] bg-[#F4F6FA] p-4 sm:p-5">
+      <section className="todos-shell rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-5">
         <AddCategoryDialog
           open={editCategoryOpen}
           onOpenChange={(open) => {
@@ -1187,7 +1242,7 @@ function TodosPageContent() {
             {categoriesQuery.isLoading ? (
               <SectionLoading rows={4} />
             ) : scheduledItems.length ? (
-              <div className="todos-scheduled-panel rounded-[20px] bg-[#EEF0F4] p-4">
+              <div className="todos-scheduled-panel rounded-[20px] bg-[var(--todo-panel-bg)] p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-5 text-[15px]">
                     {SCHEDULED_TAB_OPTIONS.map(({ value, label }) => (
@@ -1198,7 +1253,7 @@ function TodosPageContent() {
                         className={`font-poppins relative pb-1 transition ${
                           scheduledStatusTab === value
                             ? "font-semibold text-[var(--text-default)] after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-[var(--text-default)]"
-                            : "font-medium text-[#B5BBC8]"
+                            : "font-medium text-[var(--todo-muted-icon)]"
                         }`}
                       >
                         {label}
@@ -1208,7 +1263,7 @@ function TodosPageContent() {
                   <button
                     type="button"
                     aria-label="Sort scheduled todos"
-                    className="inline-flex size-8 items-center justify-center  text-[#7D8596] transition hover:bg-[var(--surface-1)]"
+                    className="inline-flex size-8 items-center justify-center text-[var(--todo-action-icon)] transition hover:bg-[var(--surface-1)]"
                   >
                     <ListFilter className="size-4" strokeWidth={1.8} />
                   </button>
@@ -1245,9 +1300,9 @@ function TodosPageContent() {
                               color: "var(--ui-badge-neutral-text)",
                             }
                           : {
-                              backgroundColor: "#CBD7E9",
-                              borderColor: "#CBD7E9",
-                              color: "white",
+                              backgroundColor: "var(--todo-filter-inactive-bg)",
+                              borderColor: "var(--todo-filter-inactive-bg)",
+                              color: "var(--todo-filter-inactive-text)",
                             }
                       }
                     >
@@ -1362,7 +1417,7 @@ function TodosPageContent() {
                               <Trash2 className="size-4" />
                             </button>
                           ) : (
-                            <div className="flex shrink-0 items-center gap-2 text-[#B5BBC8]">
+                            <div className="flex shrink-0 items-center gap-2 text-[var(--todo-muted-icon)]">
                               {hasTodoAlarmConfigured(todo) ? (
                                 <Bell
                                   className="size-[18px]"
@@ -1405,7 +1460,7 @@ function TodosPageContent() {
                     </p>
                   )}
                   {visibleScheduledItems.length > 5 ? (
-                    <p className="font-poppins pl-[72px] text-[13px] leading-none text-[#9AA2B2]">
+                    <p className="font-poppins pl-[72px] text-[13px] leading-none text-[var(--todo-muted-text)]">
                       +{visibleScheduledItems.length - 5}
                     </p>
                   ) : null}
@@ -1436,6 +1491,7 @@ function TodosPageContent() {
                       }}
                       onEditTodoRequest={openEditTodoEditor}
                       onQuickAddTodo={handleQuickAddTodo}
+                      onInlineUpdateTodo={handleInlineUpdateTodo}
                       onTodoClick={handleTodoClickDelete}
                       onEditCategoryRequest={openEditCategoryDialog}
                       onDeleteCategoryRequest={(categoryId) => {
@@ -1462,7 +1518,7 @@ function TodosPageContent() {
                         <button
                           type="button"
                           aria-label="Add category"
-                          className="flex h-full min-h-[180px] w-full items-center justify-center rounded-[18px] border-2 border-dashed border-[#C7CEDD] text-[#9BA1AC] transition hover:border-[#A8B0C1] hover:bg-[var(--surface-1)]"
+                          className="todo-add-category-card flex h-full min-h-[180px] w-full items-center justify-center rounded-[18px] border-2 border-dashed border-[var(--todo-add-border)] text-[var(--todo-muted-text)] transition hover:border-[var(--todo-add-hover-border)] hover:bg-[var(--todo-card-bg)]"
                         >
                           <Plus className="size-6" strokeWidth={1.8} />
                         </button>

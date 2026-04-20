@@ -627,13 +627,13 @@ export function AppTopNav() {
                   <>
                     {[40, 40, 66].map((height, index) => (
                       <div key={index} className="flex items-start gap-3">
-                        <span className="mt-3 size-4 rounded-full border border-[#D8DEE9] bg-transparent" />
+                        <span className="mt-3 size-4 rounded-full border border-[var(--notification-dot-unread-border)] bg-transparent" />
                         <Skeleton className="h-[62px] flex-1 rounded-[16px]" style={{ height }} />
                       </div>
                     ))}
                   </>
                 ) : notificationsQuery.isError ? (
-                  <p className="py-3 text-center text-[13px] text-[#B14E4E]">
+                  <p className="py-3 text-center text-[13px] text-[var(--notification-error-text)]">
                     Failed to load notifications
                   </p>
                 ) : displayedNotifications.length ? (
@@ -678,8 +678,8 @@ export function AppTopNav() {
                             className={cn(
                               "block size-4 shrink-0 rounded-full border transition",
                               notification.read
-                                ? "border-[#E1E6EE] bg-[#E3E8F2]"
-                                : "border-[#D8DEE9] bg-transparent",
+                                ? "border-[var(--notification-dot-read-border)] bg-[var(--notification-dot-read-bg)]"
+                                : "border-[var(--notification-dot-unread-border)] bg-transparent",
                             )}
                           />
                         </button>
@@ -707,11 +707,11 @@ export function AppTopNav() {
                           className={cn(
                             "min-h-[62px] flex-1 rounded-[16px] border px-4 py-3 transition",
                             isNavigable
-                              ? "cursor-pointer hover:border-[#D6DDEA] hover:bg-[#F4F7FB]"
+                              ? "cursor-pointer hover:border-[var(--notification-card-hover-border)] hover:bg-[var(--notification-card-hover-bg)]"
                               : "",
                             notification.read
-                              ? "border-[#EEF2F7] bg-[#FAFBFD]"
-                              : "border-[#E3E8F1] bg-[#F8FAFD]",
+                              ? "border-[var(--notification-card-read-border)] bg-[var(--notification-card-read-bg)]"
+                              : "border-[var(--notification-card-unread-border)] bg-[var(--notification-card-unread-bg)]",
                           )}
                         >
                           <p className="text-[12px] leading-[1.35] text-[var(--text-default)]">
@@ -725,7 +725,7 @@ export function AppTopNav() {
                     );
                   })
                 ) : (
-                  <p className="py-6 text-center text-[13px] text-[#7D8597]">
+                  <p className="py-6 text-center text-[13px] text-[var(--notification-empty-text)]">
                     {emptyNotificationLabel}
                   </p>
                 )}

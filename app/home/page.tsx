@@ -143,6 +143,24 @@ function HomeEventTodoRow({
   );
 }
 
+function HomeHoverRevealText({
+  text,
+  className = "",
+}: {
+  text: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`home-hover-reveal block min-w-0 ${className}`}
+      data-full-text={text}
+      title={text}
+    >
+      <span className="block truncate">{text}</span>
+    </span>
+  );
+}
+
 function HomeEventMetaRow({
   location,
   className = "",
@@ -151,11 +169,15 @@ function HomeEventMetaRow({
   className?: string;
 }) {
   return (
-    <div className={`flex min-w-0 items-center gap-1.5 ${className}`} >
-      <MapPin className="size-3.5 shrink-0 text-[#9BA1AC]" strokeWidth={2.2} />
-      <p className="truncate font-poppins text-xs text-[#9BA1AC]">
-        {location}
-      </p>
+    <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
+      <MapPin
+        className="size-3.5 shrink-0 text-[var(--text-muted)]"
+        strokeWidth={2.2}
+      />
+      <HomeHoverRevealText
+        text={location}
+        className="flex-1 font-poppins text-xs text-[var(--text-muted)]"
+      />
     </div>
   );
 }
@@ -191,7 +213,7 @@ function HomeSidebarActionIcon({
     return (
       <button
         type="button"
-        className="relative inline-flex size-7 items-center justify-center rounded-full text-[#B2B7C2] transition hover:bg-white/80 hover:text-[#81889A]"
+        className="relative inline-flex size-7 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-1)] hover:text-[var(--text-default)]"
         aria-label={label}
         onClick={onClick}
       >
@@ -203,7 +225,7 @@ function HomeSidebarActionIcon({
 
   return (
     <span
-      className="relative inline-flex size-7 items-center justify-center rounded-full text-[#B2B7C2]"
+      className="relative inline-flex size-7 items-center justify-center rounded-full text-[var(--text-muted)]"
       aria-hidden="true"
     >
       <Icon className="size-[15px]" />
@@ -834,12 +856,12 @@ export default function HomePage() {
               return (
                 <div
                   key={event.id}
-                  className={`overflow-hidden rounded-2xl bg-transparent ${
+                  className={`group/home-event relative overflow-visible rounded-2xl bg-transparent hover:z-30 focus-within:z-30 ${
                     expanded ? "h-[244px]" : "h-[102px]"
                   }`}
                 >
                   <div
-                    className="home-event-card h-[102px] rounded-2xl border border-[#E8EBF0] bg-white px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+                    className="home-event-card h-[102px] rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
                     role="button"
                     tabIndex={0}
                     onClick={() => handleOpenEventDetails(event.id)}
@@ -870,21 +892,13 @@ export default function HomePage() {
                                 >
                                   {typeLabel}
                                 </span>
-                                <span className="h-5 w-px shrink-0 bg-[#D4D8DF]" />
-                                <p className="truncate font-poppins text-base font-medium text-[#3A3F47]">
-                                  {event.title}
-                                </p>
+                                <span className="h-5 w-px shrink-0 bg-[var(--border)]" />
+                                <HomeHoverRevealText
+                                  text={event.title}
+                                  className="font-poppins text-base font-medium text-[var(--text-default)]"
+                                />
                               </div>
                             </div>
-                            {rangeLabel ? (
-                              <p className="ml-[22px] mt-1.5 truncate font-poppins text-xs text-[#9AA1AE]">
-                                {rangeLabel}
-                              </p>
-                            ) : null}
-                            <HomeEventMetaRow
-                              location={event.location}
-                              className="ml-[22px] mt-1.5"
-                            />
                           </>
                         ) : (
                           <div className="flex items-center gap-2">
@@ -894,31 +908,28 @@ export default function HomePage() {
                             />
                             <div className="flex min-w-0 items-center gap-2.5">
                               <div className="w-13 shrink-0">
-                                <p className="font-poppins text-sm font-semibold text-[#666B75]">
+                                <p className="font-poppins text-sm font-semibold text-[var(--text-default)]">
                                   {startClock.main}
                                   {startClock.suffix ? (
-                                    <span className="ml-0.5 align-top text-xs font-semibold text-[#8B909A]">
+                                    <span className="ml-0.5 align-top text-xs font-semibold text-[var(--text-muted)]">
                                       {startClock.suffix}
                                     </span>
                                   ) : null}
                                 </p>
-                                <p className="mt-0.5 font-poppins text-xs text-[#9A9FA8]">
+                                <p className="mt-0.5 font-poppins text-xs text-[var(--text-muted)]">
                                   {endClock.main}
                                   {endClock.suffix ? (
-                                    <span className="ml-0.5 align-top text-xs font-medium text-[#A5AAB4]">
+                                    <span className="ml-0.5 align-top text-xs font-medium text-[var(--text-muted)]">
                                       {endClock.suffix}
                                     </span>
                                   ) : null}
                                 </p>
                               </div>
-                              <span className="h-8 w-px shrink-0 bg-[#D4D8DF]" />
+                              <span className="h-8 w-px shrink-0 bg-[var(--border)]" />
                               <div className="min-w-0">
-                                <p className="truncate font-poppins text-sm font-medium text-[#3A3F47]">
-                                  {event.title}
-                                </p>
-                                <HomeEventMetaRow
-                                  location={event.location}
-                                  className="mt-0.5"
+                                <HomeHoverRevealText
+                                  text={event.title}
+                                  className="font-poppins text-sm font-medium text-[var(--text-default)]"
                                 />
                               </div>
                             </div>
@@ -926,7 +937,7 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-0.5 text-[#A2A9B7]">
+                      <div className="flex shrink-0 items-center gap-0.5 text-[var(--text-muted)]">
                         {event.spansMultipleDays ? (
                           <HomeSidebarActionIcon
                             icon={MessageCircle}
@@ -961,7 +972,7 @@ export default function HomePage() {
                         {hasTodos ? (
                           <button
                             type="button"
-                            className="inline-flex size-7 items-center justify-center rounded-full text-[#AAB0BB] transition hover:bg-white/80 hover:text-[#737B8B]"
+                            className="inline-flex size-7 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-1)] hover:text-[var(--text-default)]"
                             aria-label={
                               expanded
                                 ? "Collapse event todos"
@@ -983,6 +994,16 @@ export default function HomePage() {
                         ) : null}
                       </div>
                     </div>
+                    {rangeLabel ? (
+                      <HomeHoverRevealText
+                        text={rangeLabel}
+                        className="ml-[22px] mt-1.5 w-[calc(100%-22px)] font-poppins text-xs text-[var(--text-muted)]"
+                      />
+                    ) : null}
+                    <HomeEventMetaRow
+                      location={event.location}
+                      className="ml-[22px] mt-1.5 w-[calc(100%-22px)]"
+                    />
                   </div>
 
                   {expanded ? (
@@ -995,7 +1016,7 @@ export default function HomePage() {
                           color={event.color}
                         />
                       ))}
-                      <p className="pl-7 font-poppins text-sm text-[#C0C4CC]">
+                      <p className="pl-7 font-poppins text-sm text-[var(--text-muted)]">
                         New todo
                       </p>
                     </div>
@@ -1221,7 +1242,7 @@ export default function HomePage() {
                                     <span
                                       className={`font-poppins inline-flex min-w-[32px] min-h-[32px] items-center justify-center rounded-full p-1 text-[20px] leading-[120%] font-medium ${
                                         isInSelectedRange
-                                          ? "bg-[#D3D5DB] text-[var(--text-strong)]"
+                                          ? "bg-[var(--home-calendar-selected-day-bg)] text-[var(--home-calendar-selected-day-text)]"
                                           : isSunday
                                             ? "text-[#FF3B30]"
                                             : isSameMonth(day, monthCursor)
@@ -1283,7 +1304,7 @@ export default function HomePage() {
                                     {hiddenDayEventsCount > 0 ? (
                                       <button
                                         type="button"
-                                        className="pointer-events-auto block h-[12px] pl-1 text-left font-poppins text-[12px] leading-none font-medium text-[#55585F]"
+                                        className="pointer-events-auto block h-[12px] pl-1 text-left font-poppins text-[12px] leading-none font-medium text-[var(--text-muted)]"
                                         onClick={(clickEvent) => {
                                           clickEvent.preventDefault();
                                           clickEvent.stopPropagation();
@@ -1297,19 +1318,19 @@ export default function HomePage() {
 
                                   {isExpandedDay ? (
                                     <div
-                                      className="pointer-events-auto absolute inset-x-1 top-9 bottom-1 z-20 overflow-hidden rounded-[18px] border border-[#D3DAE8] bg-[#F6F8FC] shadow-[0_14px_28px_rgba(20,23,31,0.16)]"
+                                      className="pointer-events-auto absolute inset-x-1 top-9 bottom-1 z-20 overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--surface-1)] shadow-[0_14px_28px_rgba(20,23,31,0.16)]"
                                       onClick={(clickEvent) => {
                                         clickEvent.preventDefault();
                                         clickEvent.stopPropagation();
                                       }}
                                     >
-                                      <div className="flex items-center justify-between border-b border-[#DCE2EC] px-2 py-1.5">
-                                        <p className="font-poppins text-[16px] leading-none font-semibold text-[#3C4452]">
+                                      <div className="flex items-center justify-between border-b border-[var(--border)] px-2 py-1.5">
+                                        <p className="font-poppins text-[16px] leading-none font-semibold text-[var(--text-strong)]">
                                           {format(day, "dd MMM")}
                                         </p>
                                         <button
                                           type="button"
-                                          className="inline-flex size-6 items-center justify-center rounded-full text-[#7A8396] hover:bg-[#E8EDF5]"
+                                          className="inline-flex size-6 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text-default)]"
                                           onClick={(clickEvent) => {
                                             clickEvent.preventDefault();
                                             clickEvent.stopPropagation();
