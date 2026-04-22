@@ -42,6 +42,8 @@ const imageExtensions = new Set([
   "heif",
 ]);
 
+const heicExtensions = new Set(["heic", "heif"]);
+
 const videoExtensions = new Set([
   "mp4",
   "mov",
@@ -68,6 +70,18 @@ function getFileExtension(value?: string) {
     const parts = cleanedValue.split(".");
     return parts.length > 1 ? parts.pop()?.toLowerCase() || "" : "";
   }
+}
+
+export function isHeicLikeMessageAttachment(message: JamMessage) {
+  const mimeType = (message.fileMimeType || "").toLowerCase();
+  if (mimeType.includes("heic") || mimeType.includes("heif")) {
+    return true;
+  }
+
+  const extension =
+    getFileExtension(message.fileName) || getFileExtension(message.mediaUrl);
+
+  return heicExtensions.has(extension);
 }
 
 export function isLinkMessage(message: JamMessage) {
@@ -140,6 +154,23 @@ export async function downloadMessageAttachment(message: JamMessage) {
   } catch {
     window.open(attachmentUrl, "_blank", "noopener,noreferrer");
   }
+}
+
+export async function createHeicPreviewObjectUrl(attachmentUrl: string) {
+  const response = await fetch(attachmentUrl);
+  if (!response.ok) {
+    throw new Error("Preview failed");
+  }
+
+  const blob = await response.blob();
+  const { default: heic2any } = await import("heic2any");
+  const converted = await heic2any({
+    blob,
+    toType: "image/jpeg",
+  });
+  const convertedBlob = Array.isArray(converted) ? converted[0] : converted;
+
+  return window.URL.createObjectURL(convertedBlob);
 }
 
 export function formatMessageStamp(value: string, use24Hour: boolean) {

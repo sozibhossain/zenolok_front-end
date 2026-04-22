@@ -288,7 +288,7 @@ export function EventSummaryCard({
                   >
                     <SlidersHorizontal className="size-4" />
                     {incompleteTodoCount > 0 ? (
-                      <span className="absolute -right-1 -top-2 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#FF4D42] px-0.5 text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
+                      <span className="absolute -right-1 -top-2 inline-flex size-[18px] items-center justify-center rounded-full bg-[#FF4D42] text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
                         {incompleteTodoCount}
                       </span>
                     ) : null}

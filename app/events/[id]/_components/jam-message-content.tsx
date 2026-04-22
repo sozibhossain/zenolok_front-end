@@ -15,11 +15,10 @@ import {
 import type { JamMessage } from "@/lib/api";
 import {
   downloadMessageAttachment,
-  getMessageAttachmentKind,
-  getMessageAttachmentUrl,
   getMessageLabel,
   isLinkMessage,
 } from "./event-detail-helpers";
+import { useMessagePreviewUrl } from "./use-message-preview-url";
 
 type JamMessageContentProps = {
   message: JamMessage;
@@ -52,8 +51,12 @@ export function JamMessageContent({
   isMe,
 }: JamMessageContentProps) {
   const [previewFailed, setPreviewFailed] = React.useState(false);
-  const attachmentUrl = getMessageAttachmentUrl(message);
-  const attachmentKind = getMessageAttachmentKind(message);
+  const {
+    attachmentKind,
+    attachmentUrl,
+    isLoadingPreview,
+    previewUrl,
+  } = useMessagePreviewUrl(message);
   const linkValue = (message.text || "").trim();
   const bubbleClassName = isMe
     ? "border-[color:color-mix(in_srgb,var(--ui-btn-secondary-text)_20%,var(--border)_80%)] bg-[var(--ui-btn-secondary-bg)] text-[var(--ui-btn-secondary-text)]"
@@ -61,6 +64,10 @@ export function JamMessageContent({
   const secondaryTextClassName = isMe
     ? "text-[color:color-mix(in_srgb,var(--ui-btn-secondary-text)_78%,white_22%)]"
     : "text-[var(--text-muted)]";
+
+  React.useEffect(() => {
+    setPreviewFailed(false);
+  }, [message._id, previewUrl, attachmentUrl]);
 
   if (isLinkMessage(message) && linkValue) {
     return (
@@ -89,6 +96,16 @@ export function JamMessageContent({
   }
 
   if (attachmentKind === "image") {
+    if (isLoadingPreview) {
+      return (
+        <div
+          className={`flex h-[180px] w-[280px] max-w-full items-center justify-center rounded-[18px] border p-2 text-[12px] ${bubbleClassName}`}
+        >
+          <p className={secondaryTextClassName}>Preparing image preview...</p>
+        </div>
+      );
+    }
+
     if (previewFailed) {
       return renderFileCard({
         attachmentUrl,
@@ -105,7 +122,7 @@ export function JamMessageContent({
       >
         <a href={attachmentUrl} target="_blank" rel="noreferrer">
           <img
-            src={attachmentUrl}
+            src={previewUrl}
             alt={message.fileName || "Attachment"}
             className="h-auto max-h-[220px] w-full rounded-[14px] object-cover"
             loading="lazy"
@@ -218,7 +235,7 @@ function renderFileCard({
   bubbleClassName: string;
   secondaryTextClassName: string;
   message: JamMessage;
-  attachmentKind: ReturnType<typeof getMessageAttachmentKind>;
+  attachmentKind: "image" | "video" | "file" | null;
 }) {
   const fileIcon =
     attachmentKind === "image" || message.fileMimeType?.startsWith("image/")

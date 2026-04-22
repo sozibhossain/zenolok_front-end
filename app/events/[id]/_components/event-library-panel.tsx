@@ -9,9 +9,9 @@ import { EmptyState } from "@/components/shared/empty-state";
 import {
   downloadMessageAttachment,
   formatMessageStamp,
-  getMessageAttachmentKind,
   getMessageLabel,
 } from "./event-detail-helpers";
+import { useMessagePreviewUrl } from "./use-message-preview-url";
 
 type EventLibraryTab = "media" | "files" | "link";
 
@@ -79,34 +79,12 @@ export function EventLibraryPanel({
         mediaMessages.length ? (
           <div className="grid max-h-[460px] grid-cols-4 gap-1 overflow-auto">
             {mediaMessages.map((message) => (
-              <div
+              <MediaLibraryItem
                 key={message._id}
-                className="overflow-hidden rounded-sm bg-[var(--surface-1)]"
-              >
-                {message.mediaUrl &&
-                getMessageAttachmentKind(message) === "video" &&
-                !failedPreviewIds.has(message._id) ? (
-                  <video
-                    src={message.mediaUrl}
-                    controls
-                    preload="metadata"
-                    className="h-[88px] w-full bg-black/20 object-cover"
-                    onError={() => markPreviewFailed(message._id)}
-                  />
-                ) : message.mediaUrl && !failedPreviewIds.has(message._id) ? (
-                  <img
-                    src={message.mediaUrl}
-                    alt={message.fileName || "media"}
-                    className="h-[88px] w-full object-cover"
-                    loading="lazy"
-                    onError={() => markPreviewFailed(message._id)}
-                  />
-                ) : (
-                  <div className="flex h-[88px] items-center justify-center px-2 text-center text-xs text-[var(--text-muted)]">
-                    {getMessageLabel(message)}
-                  </div>
-                )}
-              </div>
+                message={message}
+                failedPreviewIds={failedPreviewIds}
+                onPreviewFailed={markPreviewFailed}
+              />
             ))}
           </div>
         ) : (
@@ -204,5 +182,54 @@ export function EventLibraryPanel({
         )
       ) : null}
     </>
+  );
+}
+
+function MediaLibraryItem({
+  message,
+  failedPreviewIds,
+  onPreviewFailed,
+}: {
+  message: JamMessage;
+  failedPreviewIds: Set<string>;
+  onPreviewFailed: (messageId: string) => void;
+}) {
+  const { attachmentKind, attachmentUrl, isLoadingPreview, previewUrl } =
+    useMessagePreviewUrl(message);
+
+  return (
+    <div className="overflow-hidden rounded-sm bg-[var(--surface-1)]">
+      {attachmentUrl &&
+      attachmentKind === "video" &&
+      !failedPreviewIds.has(message._id) ? (
+        <video
+          src={attachmentUrl}
+          controls
+          preload="metadata"
+          className="h-[88px] w-full bg-black/20 object-cover"
+          onError={() => onPreviewFailed(message._id)}
+        />
+      ) : attachmentUrl &&
+        attachmentKind === "image" &&
+        !failedPreviewIds.has(message._id) ? (
+        isLoadingPreview ? (
+          <div className="flex h-[88px] items-center justify-center px-2 text-center text-xs text-[var(--text-muted)]">
+            Preparing image...
+          </div>
+        ) : (
+          <img
+            src={previewUrl}
+            alt={message.fileName || "media"}
+            className="h-[88px] w-full object-cover"
+            loading="lazy"
+            onError={() => onPreviewFailed(message._id)}
+          />
+        )
+      ) : (
+        <div className="flex h-[88px] items-center justify-center px-2 text-center text-xs text-[var(--text-muted)]">
+          {getMessageLabel(message)}
+        </div>
+      )}
+    </div>
   );
 }

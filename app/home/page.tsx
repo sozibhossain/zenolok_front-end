@@ -204,7 +204,7 @@ function HomeSidebarActionIcon({
   onClick,
 }: HomeSidebarActionIconProps) {
   const badge = badgeCount > 0 ? (
-    <span className="absolute -top-3 -right-1 inline-flex min-h-[12px] min-w-[14px] items-center justify-center rounded-full bg-[#FF4D42] px-1 !text-[16px] font-semibold leading-none text-white">
+    <span className="absolute -top-2.5 right-0 inline-flex size-[18px] items-center justify-center rounded-full bg-[#FF4D42] text-[10px] font-semibold leading-none text-white">
       {badgeCount}
     </span>
   ) : null;

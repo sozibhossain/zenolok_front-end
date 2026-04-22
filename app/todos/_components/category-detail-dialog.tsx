@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Bell, CalendarDays, Clock3, Repeat2, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Bell, Repeat2, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { TodoStatusCircleButton } from "@/components/shared/todo-status-circle";
@@ -57,9 +57,29 @@ export function CategoryDetailDialog({
               {selectedCategoryItems.map((item) => {
                 const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
                 const isChecked = item.isCompleted || isPendingDelete;
+                const scheduleParts: string[] = [];
+
+                if (item.scheduledDate) {
+                  const parsedDate = new Date(item.scheduledDate);
+
+                  if (!Number.isNaN(parsedDate.getTime())) {
+                    scheduleParts.push(format(parsedDate, "EEE, dd MMM yyyy"));
+                  }
+                }
+
+                if (item.scheduledTime) {
+                  scheduleParts.push(
+                    formatTimeStringByPreference(
+                      item.scheduledTime,
+                      preferences.use24Hour,
+                    ),
+                  );
+                }
+
+                const scheduleLine = scheduleParts.join(" • ");
 
                 return (
-                  <div key={item._id} className="flex items-center gap-2">
+                  <div key={item._id} className="flex items-start gap-2">
                     <TodoStatusCircleButton
                       checked={isChecked}
                       checkedColor={selectedCategory?.color || "#7DC97E"}
@@ -68,13 +88,20 @@ export function CategoryDetailDialog({
                         isPendingDelete ? `Cancel delete for ${item.text}` : `Delete ${item.text} after 3 seconds`
                       }
                     />
-                    <span
-                      className={`flex-1 truncate text-[24px] leading-[120%] sm:text-[24px] ${
-                        isChecked ? "text-[var(--text-muted)]" : "text-[var(--text-default)]"
-                      }`}
-                    >
-                      {item.text}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className={`block truncate text-[24px] leading-[120%] sm:text-[24px] ${
+                          isChecked ? "text-[var(--text-muted)]" : "text-[var(--text-default)]"
+                        }`}
+                      >
+                        {item.text}
+                      </span>
+                      {scheduleLine ? (
+                        <p className="mt-1 truncate text-[12px] leading-none text-[var(--text-muted)]">
+                          {scheduleLine.replace(/\s*[^\x20-\x7E]+\s*/g, " | ")}
+                        </p>
+                      ) : null}
+                    </div>
                     {isChecked ? (
                       <button
                         type="button"
@@ -85,22 +112,7 @@ export function CategoryDetailDialog({
                         <Trash2 className="size-4" />
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1 text-[var(--text-muted)]">
-                        {item.scheduledDate ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                            <CalendarDays className="size-4" />
-                            {format(new Date(item.scheduledDate), "dd MMM")}
-                          </span>
-                        ) : null}
-                        {item.scheduledTime ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] leading-none">
-                            <Clock3 className="size-4" />
-                            {formatTimeStringByPreference(
-                              item.scheduledTime,
-                              preferences.use24Hour,
-                            )}
-                          </span>
-                        ) : null}
+                      <div className="flex items-center gap-1 pt-0.5 text-[var(--text-muted)]">
                         {item.alarm ? <Bell className="size-4" /> : null}
                         {item.repeat ? <Repeat2 className="size-4" /> : null}
                         <button

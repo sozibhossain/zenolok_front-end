@@ -104,7 +104,7 @@ function EventStatusIcon({
       >
         <Icon className="size-[22px]" />
         {badgeCount > 0 ? (
-          <span className="absolute -right-1 -top-2 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#FF4D42] px-0.5 text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
+          <span className="absolute -right-1 -top-2 inline-flex size-[18px] items-center justify-center rounded-full bg-[#FF4D42] text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
             {badgeCount}
           </span>
         ) : null}
@@ -116,7 +116,7 @@ function EventStatusIcon({
     <span className={className} aria-hidden="true">
       <Icon className="size-[22px]" />
       {badgeCount > 0 ? (
-        <span className="absolute -right-1 -top-2 inline-flex min-h-[12px] min-w-[12px] items-center justify-center rounded-full bg-[#FF4D42] px-1.5 text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
+        <span className="absolute -right-1 -top-2 inline-flex size-[18px] items-center justify-center rounded-full bg-[#FF4D42] text-[9px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,77,66,0.28)]">
           {badgeCount}
         </span>
       ) : null}

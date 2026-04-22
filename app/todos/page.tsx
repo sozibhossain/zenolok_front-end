@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { differenceInCalendarDays, startOfDay } from "date-fns";
+import { differenceInCalendarDays, format, startOfDay } from "date-fns";
 import {
   Bell,
   CalendarClock,
@@ -15,6 +15,7 @@ import {
   Repeat2,
   SlidersHorizontal,
   Trash2,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,7 @@ import {
   toggleBrickSelection,
 } from "@/lib/brick-filter-selection";
 import { queryKeys } from "@/lib/query-keys";
+import { formatTimeStringByPreference } from "@/lib/time-format";
 import { AddCategoryDialog } from "./_components/add-category-dialog";
 import { CategoryDetailDialog } from "./_components/category-detail-dialog";
 import { DeleteConfirmDialog } from "./_components/delete-confirm-dialog";
@@ -217,6 +219,30 @@ function getScheduledOffsetMeta(
   };
 }
 
+// Kept for potential reuse in detail surfaces; preview cards no longer render it.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getTodoScheduleLine(
+  scheduledDate?: string | null,
+  scheduledTime?: string | null,
+  use24Hour = false,
+) {
+  const parts: string[] = [];
+
+  if (scheduledDate) {
+    const parsedDate = new Date(scheduledDate);
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      parts.push(format(parsedDate, "EEE, dd MMM yyyy"));
+    }
+  }
+
+  if (scheduledTime) {
+    parts.push(formatTimeStringByPreference(scheduledTime, use24Hour));
+  }
+
+  return parts.join(" • ");
+}
+
 function CategoryCard({
   category,
   pendingDeleteMap,
@@ -235,16 +261,28 @@ function CategoryCard({
   onOpen: (categoryId: string) => void;
   onEditTodoRequest: (categoryId: string, todoId: string) => void;
   onQuickAddTodo: (categoryId: string, text: string) => void;
-  onInlineUpdateTodo: (categoryId: string, todoId: string, text: string) => void;
+  onInlineUpdateTodo: (
+    categoryId: string,
+    todoId: string,
+    text: string,
+  ) => void;
   onEditCategoryRequest: (category: CategoryWithItems) => void;
   onDeleteCategoryRequest: (categoryId: string) => void;
   onDragHandleMouseDown: () => void;
 }) {
   const items = category.items || [];
+  const participantCount = Array.isArray(category?.participants)
+    ? category.participants.length
+    : 0;
+  const collaboratorCount = Math.max(0, participantCount - 1);
+  const hasCollaborators = participantCount > 1;
   const [newTodoText, setNewTodoText] = React.useState("");
-  const [editingTextMap, setEditingTextMap] = React.useState<Record<string, string>>({});
+  const [editingTextMap, setEditingTextMap] = React.useState<
+    Record<string, string>
+  >({});
 
-  const getEditValue = (item: TodoItem) => editingTextMap[item._id] ?? item.text;
+  const getEditValue = (item: TodoItem) =>
+    editingTextMap[item._id] ?? item.text;
   const isDirty = (item: TodoItem) =>
     (editingTextMap[item._id] ?? item.text) !== item.text;
 
@@ -260,21 +298,35 @@ function CategoryCard({
   return (
     <div className="flex h-full flex-col">
       <div className="group mb-1.5 flex items-center justify-between gap-2">
-        <h3
-          className="font-poppins text-[16px] leading-[120%] font-semibold"
-          style={{ color: category.color }}
-        >
-          {category.name}
-        </h3>
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3
+            className="truncate font-poppins text-[16px] leading-[120%] font-semibold"
+            style={{ color: category.color }}
+          >
+            {category.name}
+          </h3>
+          {hasCollaborators ? (
+            <span
+              className="inline-flex size-4 shrink-0 items-center justify-center"
+              style={{ color: category.color }}
+              title={`${collaboratorCount} collaborator${collaboratorCount === 1 ? "" : "s"}`}
+            >
+              <Users className="size-3.5" strokeWidth={2} />
+            </span>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
           <span
             aria-label="Drag to reorder"
-            onMouseDown={(e) => { e.stopPropagation(); onDragHandleMouseDown(); }}
-            className="inline-flex size-5 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 text-(--todo-action-icon)"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onDragHandleMouseDown();
+            }}
+            className="inline-flex size-5 cursor-grab items-center justify-center text-(--todo-action-icon)"
           >
             <GripVertical className="size-3.5" strokeWidth={2} />
           </span>
-          <div className="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               aria-label={`Edit ${category.name}`}
@@ -297,6 +349,15 @@ function CategoryCard({
             >
               <Trash2 className="size-3.5" strokeWidth={2} />
             </button>
+            {hasCollaborators ? (
+              <span
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none text-white"
+                style={{ backgroundColor: category.color }}
+                title={`${collaboratorCount} collaborator${collaboratorCount === 1 ? "" : "s"}`}
+              >
+                {collaboratorCount}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -347,39 +408,45 @@ function CategoryCard({
                       : `Delete ${item.text} after 3 seconds`
                   }
                 />
-                <input
-                  type="text"
-                  value={getEditValue(item)}
-                  onChange={(event) => {
-                    event.stopPropagation();
-                    setEditingTextMap((prev) => ({
-                      ...prev,
-                      [item._id]: event.target.value,
-                    }));
-                  }}
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => {
-                    event.stopPropagation();
-                    if (event.key === "Enter" && isDirty(item)) {
-                      onInlineUpdateTodo(category._id, item._id, getEditValue(item));
-                    }
-                    if (event.key === "Escape") {
-                      setEditingTextMap((prev) => {
-                        const next = { ...prev };
-                        delete next[item._id];
-                        return next;
-                      });
-                    }
-                  }}
-                  aria-label={`Edit text for ${item.text}`}
-                  className={`min-w-0 flex-1 truncate font-poppins border-none bg-transparent focus:outline-none ${
-                    isChecked
-                      ? "text-[var(--text-muted)] line-through"
-                      : isDateOnlyOverdue
-                        ? "font-medium text-red-500"
-                        : "text-[var(--text-default)]"
-                  }`}
-                />
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="text"
+                    value={getEditValue(item)}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      setEditingTextMap((prev) => ({
+                        ...prev,
+                        [item._id]: event.target.value,
+                      }));
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter" && isDirty(item)) {
+                        onInlineUpdateTodo(
+                          category._id,
+                          item._id,
+                          getEditValue(item),
+                        );
+                      }
+                      if (event.key === "Escape") {
+                        setEditingTextMap((prev) => {
+                          const next = { ...prev };
+                          delete next[item._id];
+                          return next;
+                        });
+                      }
+                    }}
+                    aria-label={`Edit text for ${item.text}`}
+                    className={`w-full min-w-0 truncate font-poppins border-none bg-transparent focus:outline-none ${
+                      isChecked
+                        ? "text-[var(--text-muted)] line-through"
+                        : isDateOnlyOverdue
+                          ? "font-medium text-red-500"
+                          : "text-[var(--text-default)]"
+                    }`}
+                  />
+                </div>
                 <div className="flex shrink-0 items-center gap-1.5 text-[var(--todo-muted-icon)]">
                   {isDirty(item) ? (
                     <button
@@ -388,7 +455,11 @@ function CategoryCard({
                       className="inline-flex items-center justify-center text-green-500 transition hover:text-green-600"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onInlineUpdateTodo(category._id, item._id, getEditValue(item));
+                        onInlineUpdateTodo(
+                          category._id,
+                          item._id,
+                          getEditValue(item),
+                        );
                       }}
                     >
                       <Check className="size-4" strokeWidth={2.5} />
@@ -657,7 +728,9 @@ function TodosPageContent() {
       setAddOpen(false);
       setNewCategoryName("");
       setNewCategoryColor("#F7C700");
-      setNewCategoryParticipantIds(profileQuery.data?._id ? [profileQuery.data._id] : []);
+      setNewCategoryParticipantIds(
+        profileQuery.data?._id ? [profileQuery.data._id] : [],
+      );
       queryClient.invalidateQueries({
         queryKey: queryKeys.categoriesWithItems,
       });
@@ -729,7 +802,9 @@ function TodosPageContent() {
       todoCategoryApi.reorder(orders),
     onSuccess: () => {
       setLocalCategoryOrder(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.categoriesWithItems });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.categoriesWithItems,
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.categories });
     },
     onError: () => {
@@ -751,9 +826,7 @@ function TodosPageContent() {
 
     if (!localCategoryOrder) return filtered;
 
-    const orderMap = new Map(
-      localCategoryOrder.map((id, idx) => [id, idx]),
-    );
+    const orderMap = new Map(localCategoryOrder.map((id, idx) => [id, idx]));
     return [...filtered].sort((a, b) => {
       const ai = orderMap.has(a._id)
         ? orderMap.get(a._id)!
@@ -801,7 +874,8 @@ function TodosPageContent() {
   }, [selectedCategory, selectedTodoId]);
   const allUsers = usersQuery.data?.users || [];
   const currentEditCategoryParticipantIds = React.useMemo(
-    () => new Set((editingCategory?.participants || []).map((id) => id.toString())),
+    () =>
+      new Set((editingCategory?.participants || []).map((id) => id.toString())),
     [editingCategory?.participants],
   );
 
@@ -1375,10 +1449,17 @@ function TodosPageContent() {
 
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="">
-            <h2 className="font-poppins mb-3 flex items-center gap-2 text-[20px] leading-[120%] font-medium text-[var(--text-strong)]">
-              <CalendarClock className="size-5" />
-              Scheduled
-            </h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="font-poppins flex items-center gap-2 text-[20px] leading-[120%] font-medium text-[var(--text-strong)]">
+                <CalendarClock className="size-5" />
+                Scheduled
+              </h2>
+              {visibleScheduledItems.length ? (
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-[var(--todo-action-icon)] text-[14px] font-semibold leading-none text-white">
+                  {visibleScheduledItems.length}
+                </span>
+              ) : null}
+            </div>
 
             {categoriesQuery.isLoading ? (
               <SectionLoading rows={4} />
@@ -1600,11 +1681,6 @@ function TodosPageContent() {
                       No todo found for this filter.
                     </p>
                   )}
-                  {visibleScheduledItems.length > 5 ? (
-                    <p className="font-poppins pl-[72px] text-[13px] leading-none text-[var(--todo-muted-text)]">
-                      +{visibleScheduledItems.length - 5}
-                    </p>
-                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1640,7 +1716,10 @@ function TodosPageContent() {
                           }
                           setDragFromIndex(globalIdx);
                           e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", String(globalIdx));
+                          e.dataTransfer.setData(
+                            "text/plain",
+                            String(globalIdx),
+                          );
                         }}
                         onDragOver={(e) => {
                           e.preventDefault();
@@ -1651,9 +1730,7 @@ function TodosPageContent() {
                         }}
                         onDragLeave={(e) => {
                           if (
-                            !e.currentTarget.contains(
-                              e.relatedTarget as Node,
-                            )
+                            !e.currentTarget.contains(e.relatedTarget as Node)
                           ) {
                             setDragOverIndex((prev) =>
                               prev === globalIdx ? null : prev,
@@ -1721,7 +1798,9 @@ function TodosPageContent() {
                           setNewCategoryName("");
                           setNewCategoryColor("#F7C700");
                           setNewCategoryParticipantIds(
-                            profileQuery.data?._id ? [profileQuery.data._id] : [],
+                            profileQuery.data?._id
+                              ? [profileQuery.data._id]
+                              : [],
                           );
                         }
                       }}
