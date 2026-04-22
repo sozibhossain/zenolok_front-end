@@ -36,7 +36,12 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { BrickIcon } from "@/components/shared/brick-icon";
-import { notificationApi, type NotificationData } from "@/lib/api";
+import {
+  notificationApi,
+  type NotificationData,
+  type NotificationCounts,
+  type NotificationListData,
+} from "@/lib/api";
 import { getNotificationHref, isMessageNotification } from "@/lib/notifications";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -76,6 +81,28 @@ const weekStartsOnMap: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
   friday: 5,
   saturday: 6,
 };
+
+function buildNotificationCounts(
+  notifications: NotificationData[],
+): NotificationCounts {
+  const counts = {
+    all: { total: notifications.length, unread: 0 },
+    messages: { total: 0, unread: 0 },
+    system: { total: 0, unread: 0 },
+  };
+
+  notifications.forEach((notification) => {
+    const bucket = isMessageNotification(notification) ? counts.messages : counts.system;
+    bucket.total += 1;
+
+    if (!notification.read) {
+      counts.all.unread += 1;
+      bucket.unread += 1;
+    }
+  });
+
+  return counts;
+}
 
 function HomeMonthDatePicker({
   className,
@@ -364,6 +391,13 @@ export function AppTopNav() {
   >("all");
   const [showUnreadNotificationsOnly, setShowUnreadNotificationsOnly] =
     useState(false);
+  const [pendingReadNotificationIds, setPendingReadNotificationIds] = useState<
+    Record<string, true>
+  >({});
+  const [togglePendingNotificationIds, setTogglePendingNotificationIds] = useState<
+    Record<string, true>
+  >({});
+  const pendingReadNotificationTimersRef = useRef<Record<string, number>>({});
   const { goToToday, goToPreviousMonth, goToNextMonth, preferences } =
     useAppState();
   const isHomePage =
@@ -392,7 +426,161 @@ export function AppTopNav() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
     },
   });
-  const notifications = notificationsQuery.data?.items ?? [];
+  const updateNotificationReadState = useCallback(
+    (notificationId: string, read: boolean) => {
+      queryClient.setQueryData<NotificationListData | undefined>(
+        queryKeys.notifications,
+        (previous) => {
+          if (!previous) {
+            return previous;
+          }
+
+          let changed = false;
+          const items = previous.items.map((item) => {
+            if (item._id !== notificationId || item.read === read) {
+              return item;
+            }
+
+            changed = true;
+            return {
+              ...item,
+              read,
+            };
+          });
+
+          if (!changed) {
+            return previous;
+          }
+
+          return {
+            items,
+            counts: buildNotificationCounts(items),
+          };
+        },
+      );
+    },
+    [queryClient],
+  );
+  const clearPendingNotificationRead = useCallback((notificationId: string) => {
+    const timer = pendingReadNotificationTimersRef.current[notificationId];
+    if (timer) {
+      window.clearTimeout(timer);
+      delete pendingReadNotificationTimersRef.current[notificationId];
+    }
+
+    setPendingReadNotificationIds((current) => {
+      if (!current[notificationId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[notificationId];
+      return next;
+    });
+  }, []);
+  const setNotificationTogglePending = useCallback(
+    (notificationId: string, pending: boolean) => {
+      setTogglePendingNotificationIds((current) => {
+        if (pending) {
+          if (current[notificationId]) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [notificationId]: true,
+          };
+        }
+
+        if (!current[notificationId]) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[notificationId];
+        return next;
+      });
+    },
+    [],
+  );
+  const scheduleNotificationRead = useCallback(
+    (notificationId: string) => {
+      clearPendingNotificationRead(notificationId);
+      setPendingReadNotificationIds((current) => ({
+        ...current,
+        [notificationId]: true,
+      }));
+
+      pendingReadNotificationTimersRef.current[notificationId] = window.setTimeout(() => {
+        delete pendingReadNotificationTimersRef.current[notificationId];
+        setPendingReadNotificationIds((current) => {
+          if (!current[notificationId]) {
+            return current;
+          }
+
+          const next = { ...current };
+          delete next[notificationId];
+          return next;
+        });
+        setNotificationTogglePending(notificationId, true);
+        updateNotificationReadState(notificationId, true);
+        markAsReadMutation.mutate(notificationId, {
+          onError: () => {
+            updateNotificationReadState(notificationId, false);
+          },
+          onSettled: () => {
+            setNotificationTogglePending(notificationId, false);
+          },
+        });
+      }, 3000);
+    },
+    [
+      clearPendingNotificationRead,
+      markAsReadMutation,
+      setNotificationTogglePending,
+      updateNotificationReadState,
+    ],
+  );
+  const handleNotificationToggle = useCallback(
+    (notification: NotificationData) => {
+      if (togglePendingNotificationIds[notification._id]) {
+        return;
+      }
+
+      if (pendingReadNotificationTimersRef.current[notification._id]) {
+        clearPendingNotificationRead(notification._id);
+        return;
+      }
+
+      if (notification.read) {
+        setNotificationTogglePending(notification._id, true);
+        updateNotificationReadState(notification._id, false);
+        markAsUnreadMutation.mutate(notification._id, {
+          onError: () => {
+            updateNotificationReadState(notification._id, true);
+          },
+          onSettled: () => {
+            setNotificationTogglePending(notification._id, false);
+          },
+        });
+        return;
+      }
+
+      scheduleNotificationRead(notification._id);
+    },
+    [
+      clearPendingNotificationRead,
+      markAsUnreadMutation,
+      scheduleNotificationRead,
+      setNotificationTogglePending,
+      togglePendingNotificationIds,
+      updateNotificationReadState,
+    ],
+  );
+  const notifications = useMemo(
+    () => notificationsQuery.data?.items ?? [],
+    [notificationsQuery.data?.items],
+  );
   const serverCounts = notificationsQuery.data?.counts;
   const unreadCount = serverCounts?.all.unread ?? notifications.filter((item) => !item.read).length;
   const messageNotifications = notifications.filter((item) =>
@@ -446,6 +634,27 @@ export function AppTopNav() {
     },
     [markAsReadMutation, router],
   );
+
+  useEffect(() => {
+    const notificationLookup = new Map(
+      notifications.map((item) => [item._id, item] as const),
+    );
+    Object.keys(pendingReadNotificationTimersRef.current).forEach((notificationId) => {
+      const notification = notificationLookup.get(notificationId);
+      if (!notification || notification.read) {
+        clearPendingNotificationRead(notificationId);
+      }
+    });
+  }, [clearPendingNotificationRead, notifications]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(pendingReadNotificationTimersRef.current).forEach((timer) =>
+        window.clearTimeout(timer),
+      );
+      pendingReadNotificationTimersRef.current = {};
+    };
+  }, []);
 
   return (
     <motion.header
@@ -642,9 +851,13 @@ export function AppTopNav() {
                     const timeLabel = Number.isNaN(createdAt.getTime())
                       ? ""
                       : formatDistanceToNow(createdAt, { addSuffix: true });
-                    const isTogglePending =
-                      markAsReadMutation.isPending ||
-                      markAsUnreadMutation.isPending;
+                    const isPendingMarkAsRead = Boolean(
+                      pendingReadNotificationIds[notification._id],
+                    );
+                    const isTogglePending = Boolean(
+                      togglePendingNotificationIds[notification._id],
+                    );
+                    const isChecked = notification.read || isPendingMarkAsRead;
                     const href = getNotificationHref(notification);
                     const isNavigable = Boolean(href);
 
@@ -658,26 +871,23 @@ export function AppTopNav() {
                         <button
                           type="button"
                           aria-label={
-                            notification.read
+                            isPendingMarkAsRead
+                              ? "Cancel mark notification as read"
+                              : notification.read
                               ? "Mark notification as unread"
-                              : "Mark notification as read"
+                              : "Mark notification as read after 3 seconds"
                           }
                           className="mt-3 rounded-full disabled:cursor-not-allowed"
-                          disabled={isTogglePending}
+                          disabled={isTogglePending || markAllReadMutation.isPending}
                           onClick={(event) => {
                             event.stopPropagation();
-                            if (notification.read) {
-                              markAsUnreadMutation.mutate(notification._id);
-                              return;
-                            }
-
-                            markAsReadMutation.mutate(notification._id);
+                            handleNotificationToggle(notification);
                           }}
                         >
                           <span
                             className={cn(
                               "block size-4 shrink-0 rounded-full border transition",
-                              notification.read
+                              isChecked
                                 ? "border-[var(--notification-dot-read-border)] bg-[var(--notification-dot-read-bg)]"
                                 : "border-[var(--notification-dot-unread-border)] bg-transparent",
                             )}

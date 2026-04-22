@@ -246,12 +246,6 @@ export function EventSummaryCard({
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex min-w-0 items-center gap-2 text-[14px] text-[var(--text-default)]">
-                      <MapPin className="size-5 shrink-0 text-[var(--text-muted)]" />
-                      <span className="truncate font-poppins">
-                        {event.location || "No location"}
-                      </span>
-                    </div>
                   </div>
                 </div>
               )}

@@ -496,6 +496,12 @@ function CategoryCard({
             );
           })}
 
+          {items.length > 5 ? (
+            <p className="font-poppins mt-2 pl-7 text-[12px] leading-none text-[var(--todo-muted-text)]">
+              +{items.length - 5}
+            </p>
+          ) : null}
+
           <div
             className="flex items-center gap-2"
             onClick={(event) => event.stopPropagation()}
@@ -519,12 +525,6 @@ function CategoryCard({
             />
           </div>
         </div>
-
-        {items.length > 5 ? (
-          <p className="font-poppins mt-2 pl-7 text-[12px] leading-none text-[var(--todo-muted-text)]">
-            +{items.length - 5}
-          </p>
-        ) : null}
       </div>
     </div>
   );
