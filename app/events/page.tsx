@@ -714,13 +714,13 @@ export default function EventsPage() {
       </section>
 
       <Dialog open={createBrickOpen} onOpenChange={setCreateBrickOpen}>
-        <DialogContent className="max-w-5xl rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-6 space-y-2">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] p-4 sm:p-6 gap-3">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-[var(--text-strong)]">
               Create Brick
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
             <Input
               placeholder="Brick name"
               value={brickName}
@@ -745,9 +745,7 @@ export default function EventsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <div>
-                <p className="text-sm">Brick Icon</p>
-              </div>
+              <p className="text-sm">Brick Icon</p>
               <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4">
                 <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 sm:gap-2.5 md:grid-cols-10">
                   {brickIconOptions.map((option) => (
@@ -780,7 +778,7 @@ export default function EventsPage() {
               </span>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               onClick={() => createBrickMutation.mutate()}
               disabled={createBrickMutation.isPending}
