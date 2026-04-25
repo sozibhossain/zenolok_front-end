@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { brickApi, paginateArray, type Brick } from "@/lib/api";
-import { brickIconOptions } from "@/lib/brick-icons";
+import { brickIconOptions, getBrickSvg } from "@/lib/brick-icons";
 import { colorPalette } from "@/lib/presets";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -304,7 +304,7 @@ export function BricksManagePanel() {
                     aria-label={option.label}
                     title={option.label}
                   >
-                    <option.Icon className="size-4 sm:size-5" />
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="size-4 sm:size-5" aria-hidden="true" dangerouslySetInnerHTML={{ __html: getBrickSvg(option.svgKey) }} />
                   </button>
                 ))}
               </div>
