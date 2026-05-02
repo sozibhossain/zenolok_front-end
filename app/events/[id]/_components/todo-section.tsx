@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,6 @@ type TodoSectionProps = {
 const DEBOUNCE_MS = 1000;
 const SAVED_DISPLAY_MS = 1500;
 
-const iconButtonClass =
-  "inline-flex size-7 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-1)] hover:text-[var(--text-strong)]";
 
 const sortTodos = (items: EventTodo[]) =>
   [...items].sort((left, right) => {
@@ -76,10 +74,20 @@ export function TodoSection({
     {},
   );
   const [saveStates, setSaveStates] = React.useState<Record<string, SaveState>>({});
+  const [addState, setAddState] = React.useState<"idle" | "saving">("idle");
 
   // Holds debounce timer ids and "saved" clear timers per todo
   const debounceTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const savedTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Ref so the add debounce callback always reads the latest inputValue without stale closure
+  const latestInputValue = React.useRef(inputValue);
+  const addDebounceTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keep latest inputValue ref in sync
+  React.useEffect(() => {
+    latestInputValue.current = inputValue;
+  }, [inputValue]);
 
   React.useEffect(() => {
     setOrderedIds(sortedTodos.map((todo) => todo._id));
@@ -105,9 +113,11 @@ export function TodoSection({
   React.useEffect(() => {
     const dTimers = debounceTimers.current;
     const sTimers = savedTimers.current;
+    const aTimer = addDebounceTimer;
     return () => {
       Object.values(dTimers).forEach(clearTimeout);
       Object.values(sTimers).forEach(clearTimeout);
+      if (aTimer.current) clearTimeout(aTimer.current);
     };
   }, []);
 
@@ -133,23 +143,53 @@ export function TodoSection({
     }
   }, []);
 
-  const handleAddTodo = async () => {
-    if (!inputValue.trim()) {
+  // Immediately create using the latest value; cancels any pending debounce
+  const handleAddTodo = React.useCallback(async () => {
+    if (addDebounceTimer.current) {
+      clearTimeout(addDebounceTimer.current);
+      addDebounceTimer.current = null;
+    }
+
+    const value = latestInputValue.current;
+    if (!value.trim()) {
       restoreInputFocus();
       return;
     }
 
+    setAddState("saving");
     try {
       await onAdd();
       onInputChange("");
     } catch {
       // Caller handles error display.
     } finally {
+      setAddState("idle");
       requestAnimationFrame(() => {
         restoreInputFocus();
       });
     }
-  };
+  }, [onAdd, onInputChange, restoreInputFocus]);
+
+  // Called on every keystroke in the "New todo" input — debounces auto-create
+  const handleAddInputChange = React.useCallback(
+    (value: string) => {
+      onInputChange(value);
+
+      if (addDebounceTimer.current) {
+        clearTimeout(addDebounceTimer.current);
+        addDebounceTimer.current = null;
+      }
+
+      if (!value.trim()) {
+        return;
+      }
+
+      addDebounceTimer.current = setTimeout(() => {
+        void handleAddTodo();
+      }, DEBOUNCE_MS);
+    },
+    [handleAddTodo, onInputChange],
+  );
 
   const moveTodo = async (targetTodoId: string) => {
     if (!draggingTodoId || draggingTodoId === targetTodoId) {
@@ -326,7 +366,7 @@ export function TodoSection({
             <Input
               ref={addInputRef}
               value={inputValue}
-              onChange={(event) => onInputChange(event.target.value)}
+              onChange={(event) => handleAddInputChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
@@ -334,20 +374,14 @@ export function TodoSection({
                 }
               }}
               placeholder={title}
-              className="h-8 rounded-none border-none bg-transparent px-2 text-[14px] shadow-none placeholder:text-(--text-muted) focus-visible:ring-0"
+              disabled={addState === "saving"}
+              className="h-8 rounded-none border-none bg-transparent px-2 text-[14px] shadow-none placeholder:text-(--text-muted) focus-visible:ring-0 disabled:opacity-60"
             />
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                void handleAddTodo();
-              }}
-              disabled={!inputValue.trim()}
-              className={`${iconButtonClass} text-(--text-muted) disabled:opacity-35`}
-              aria-label="Add todo"
-            >
-              <Plus className="size-4 stroke-[3px]" />
-            </button>
+            {addState === "saving" && (
+              <span className="shrink-0 text-[11px] text-(--text-muted) leading-none">
+                Saving…
+              </span>
+            )}
           </div>
         </div>
       </div>

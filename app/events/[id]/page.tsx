@@ -610,15 +610,15 @@ export default function EventDetailsPage() {
     );
   };
 
-  const flushSharedNotesSave = () => {
+  const flushSharedNotesSave = async (): Promise<void> => {
     if (!event || sharedNotesText === (event.notes || "")) {
       return;
     }
 
-    saveSharedNotesMutation.mutate({ notes: sharedNotesText });
+    await saveSharedNotesMutation.mutateAsync({ notes: sharedNotesText });
   };
 
-  const flushPersonalNotesSave = () => {
+  const flushPersonalNotesSave = async (): Promise<void> => {
     if (
       !isCollaborativeEvent ||
       !event ||
@@ -627,7 +627,7 @@ export default function EventDetailsPage() {
       return;
     }
 
-    savePersonalNotesMutation.mutate({ notes: personalNotesText });
+    await savePersonalNotesMutation.mutateAsync({ notes: personalNotesText });
   };
 
   return (
@@ -891,21 +891,13 @@ export default function EventDetailsPage() {
                     ? setPersonalNotesText
                     : setSharedNotesText
                 }
-                onSubmit={
+                onAutoSave={
                   isCollaborativeEvent
                     ? flushPersonalNotesSave
                     : flushSharedNotesSave
                 }
-                isSaving={
-                  isCollaborativeEvent
-                    ? savePersonalNotesMutation.isPending
-                    : saveSharedNotesMutation.isPending
-                }
                 placeholder="New notes"
-                label={isCollaborativeEvent ? "Private notes" : "Notes"}
-                minHeightClassName={
-                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[50px]"
-                }
+                minHeightClassName="min-h-[50px]"
                 bare
               />
             </div>
@@ -949,13 +941,9 @@ export default function EventDetailsPage() {
                 <EventNotesPanel
                   value={sharedNotesText}
                   onChange={setSharedNotesText}
-                  onSubmit={flushSharedNotesSave}
-                  isSaving={saveSharedNotesMutation.isPending}
+                  onAutoSave={flushSharedNotesSave}
                   placeholder="New shared notes"
-                  label="Shared notes"
-                minHeightClassName={
-                  isCollaborativeEvent ? "min-h-[50px]" : "min-h-[50px]"
-                }
+                  minHeightClassName="min-h-[50px]"
                   bare
                 />
               </div>
