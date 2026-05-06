@@ -420,11 +420,53 @@ export default function SettingsPage() {
     },
   });
 
+  // When the stored Google token lacks calendar scope, clear it and immediately
+  // redirect to OAuth so the user re-grants with the proper permission. This
+  // happens automatically the first time `Sync` is clicked after a scope upgrade.
+  const reconnectAfterScopeFailure = React.useCallback(async () => {
+    try {
+      await googleCalendarApi.disconnect();
+    } catch {
+      // ignore — even if disconnect fails, the OAuth flow will re-grant tokens.
+    }
+    queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
+    try {
+      const { authUrl } = await googleCalendarApi.getAuthUrl();
+      toast.info("Reconnecting Google Calendar with calendar permission…");
+      window.location.href = authUrl;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to start reconnect flow";
+      toast.error(message);
+    }
+  }, [queryClient]);
+
+  const isScopeMessage = (message: string | null | undefined): boolean => {
+    if (!message) return false;
+    return (
+      message.includes("didn't grant calendar access") ||
+      message.includes("insufficient authentication scopes") ||
+      message.includes("insufficient_scope") ||
+      message.includes("PERMISSION_DENIED")
+    );
+  };
+
   const googleCalendarSyncMutation = useMutation({
     mutationFn: () => googleCalendarApi.sync(),
     onSuccess: ({ inbound, outbound, inboundError, outboundError }) => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
+
+      // If either side failed because of a scope problem, auto-restart OAuth
+      // instead of asking the user to dig through MongoDB.
+      if (
+        isScopeMessage(outboundError) ||
+        isScopeMessage(inboundError) ||
+        isScopeMessage(outbound?.firstError)
+      ) {
+        reconnectAfterScopeFailure();
+        return;
+      }
 
       if (outboundError) {
         toast.error(`Push to Google Calendar failed: ${outboundError}`);
