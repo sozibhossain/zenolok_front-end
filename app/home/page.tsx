@@ -103,6 +103,7 @@ type CalendarEvent = {
   reminder?: string;
   alarmPreset?: EventData["alarmPreset"];
   recurrence: EventData["recurrence"];
+  recurrenceUntil?: Date | null;
   todos: Array<{
     id: string;
     text: string;
@@ -377,9 +378,19 @@ function expandRecurringEvent(
     return [event];
   }
 
+  // Drop the base occurrence if the series was capped before its own start.
+  const untilTime = event.recurrenceUntil
+    ? event.recurrenceUntil.getTime()
+    : null;
+  if (untilTime !== null && event.startAt.getTime() > untilTime) {
+    return [];
+  }
+
   const occurrences: CalendarEvent[] = [event];
   const durationMs = event.endAt.getTime() - event.startAt.getTime();
   const rangeEndTime = rangeEnd.getTime();
+  const hardCap =
+    untilTime !== null ? Math.min(rangeEndTime, untilTime) : rangeEndTime;
 
   let nextStart = event.startAt;
   for (let index = 0; index < 400; index += 1) {
@@ -395,7 +406,7 @@ function expandRecurringEvent(
       break;
     }
 
-    if (nextStart.getTime() > rangeEndTime) {
+    if (nextStart.getTime() > hardCap) {
       break;
     }
 
@@ -640,6 +651,9 @@ export default function HomePage() {
           reminder: event.reminder ?? "none",
           alarmPreset: event.alarmPreset ?? "none",
           recurrence: event.recurrence ?? "once",
+          recurrenceUntil: event.recurrenceUntil
+            ? new Date(event.recurrenceUntil)
+            : null,
           todos: (event.todos || [])
             .filter((todo) => {
               if (!currentUserId) {
@@ -790,10 +804,15 @@ export default function HomePage() {
     return byDate;
   }, [filteredEvents]);
   const handleOpenEventDetails = React.useCallback(
-    (eventId: string) => {
+    (eventId: string, occurrenceDate?: Date) => {
       setEventsDrawerOpen(false);
       setExpandedDayKey(null);
-      router.push(`/events/${eventId}`);
+      const path = occurrenceDate
+        ? `/events/${eventId}?occurrenceDate=${encodeURIComponent(
+            occurrenceDate.toISOString(),
+          )}`
+        : `/events/${eventId}`;
+      router.push(path);
     },
     [router],
   );
@@ -1101,14 +1120,16 @@ export default function HomePage() {
                     className="home-event-card h-[102px] rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
                     role="button"
                     tabIndex={0}
-                    onClick={() => handleOpenEventDetails(event.originalId)}
+                    onClick={() =>
+                      handleOpenEventDetails(event.originalId, event.startAt)
+                    }
                     onKeyDown={(keyEvent) => {
                       if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
                         return;
                       }
 
                       keyEvent.preventDefault();
-                      handleOpenEventDetails(event.originalId);
+                      handleOpenEventDetails(event.originalId, event.startAt);
                     }}
                   >
                     <div className="flex items-start justify-between gap-2.5">
@@ -1622,7 +1643,10 @@ export default function HomePage() {
                                                 onClick={(clickEvent) => {
                                                   clickEvent.preventDefault();
                                                   clickEvent.stopPropagation();
-                                                  handleOpenEventDetails(event.originalId);
+                                                  handleOpenEventDetails(
+                                                    event.originalId,
+                                                    event.startAt,
+                                                  );
                                                 }}
                                               >
                                                 <span className="min-w-0 flex-1">

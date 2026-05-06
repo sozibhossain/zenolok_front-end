@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -137,9 +137,21 @@ export default function EventDetailsPage() {
   const { preferences } = useAppState();
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
   const id = params.id;
+  // ISO timestamp of the specific occurrence the user clicked on the calendar.
+  // Present only when navigating from a recurring event's instance.
+  const occurrenceDateParam = searchParams.get("occurrenceDate");
+
+  // Modal that asks "This and following events" vs "All events" when
+  // editing/deleting a recurring event from a non-first occurrence.
+  const [scopeDecision, setScopeDecision] = React.useState<
+    | null
+    | { kind: "repeat"; recurrence: EventData["recurrence"] }
+    | { kind: "delete" }
+  >(null);
 
   const [newPrivateTodoText, setNewPrivateTodoText] = useState("");
   const [newSharedTodoText, setNewSharedTodoText] = useState("");
@@ -257,7 +269,8 @@ export default function EventDetailsPage() {
   };
 
   const deleteEventMutation = useMutation({
-    mutationFn: () => eventApi.delete(id),
+    mutationFn: (options?: Parameters<typeof eventApi.delete>[1]) =>
+      eventApi.delete(id, options),
     onSuccess: () => {
       toast.success("Event deleted");
       router.push("/events");
@@ -270,13 +283,59 @@ export default function EventDetailsPage() {
   const updateEventMutation = useMutation({
     mutationFn: (payload: Parameters<typeof eventApi.update>[1]) =>
       eventApi.update(id, payload),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Event updated");
       refreshEverything();
+      // After "this and following" split, the new tail series has a brand-new id.
+      // Navigate to it so the user is now editing the correct (post-split) event.
+      const newId = (data as { _id?: string; splitFromEventId?: string })?._id;
+      const splitFrom = (data as { splitFromEventId?: string })?.splitFromEventId;
+      if (newId && splitFrom && newId !== id) {
+        router.replace(`/events/${newId}`);
+      }
     },
     onError: (error: Error) =>
       toast.error(error.message || "Failed to update event"),
   });
+
+  // True when the user is viewing a recurring event from a specific occurrence
+  // that is NOT the first one — only then does the scope modal make sense.
+  const needsScopeDecision = React.useMemo(() => {
+    if (!eventQuery.data) return false;
+    if (!eventQuery.data.recurrence || eventQuery.data.recurrence === "once") return false;
+    if (!occurrenceDateParam) return false;
+    const occ = new Date(occurrenceDateParam).getTime();
+    const start = new Date(eventQuery.data.startTime).getTime();
+    return Number.isFinite(occ) && Math.abs(occ - start) > 1000;
+  }, [eventQuery.data, occurrenceDateParam]);
+
+  const applyRepeatChange = React.useCallback(
+    (recurrence: EventData["recurrence"], scope: "all" | "this_and_following") => {
+      const payload: Parameters<typeof eventApi.update>[1] = { recurrence };
+      if (scope === "this_and_following" && occurrenceDateParam) {
+        payload.editScope = "this_and_following";
+        payload.occurrenceDate = occurrenceDateParam;
+      }
+      updateEventMutation.mutate(payload);
+    },
+    [occurrenceDateParam, updateEventMutation],
+  );
+
+  const applyDelete = React.useCallback(
+    (scope: "all" | "this_and_following") => {
+      const options: Parameters<typeof eventApi.delete>[1] = {};
+      if (scope === "this_and_following" && occurrenceDateParam) {
+        options.editScope = "this_and_following";
+        options.occurrenceDate = occurrenceDateParam;
+      }
+      deleteEventMutation.mutate(options, {
+        onSuccess: () => {
+          setDeleteDialogOpen(false);
+        },
+      });
+    },
+    [occurrenceDateParam, deleteEventMutation],
+  );
   const handleCustomAlarmSave = React.useCallback(() => {
     const nextOffsets = Array.from(
       new Set(
@@ -724,13 +783,14 @@ export default function EventDetailsPage() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() =>
-                deleteEventMutation.mutate(undefined, {
-                  onSuccess: () => {
-                    setDeleteDialogOpen(false);
-                  },
-                })
-              }
+              onClick={() => {
+                if (needsScopeDecision) {
+                  setDeleteDialogOpen(false);
+                  setScopeDecision({ kind: "delete" });
+                  return;
+                }
+                applyDelete("all");
+              }}
               className="!text-[14px]"
               disabled={deleteEventMutation.isPending}
             >
@@ -1241,9 +1301,15 @@ export default function EventDetailsPage() {
                     key={option.value}
                     type="button"
                     onClick={() => {
-                      updateEventMutation.mutate({
-                        recurrence: option.value,
-                      });
+                      // If editing a recurring event from a non-first occurrence,
+                      // ask the user whether the change applies to "this and following"
+                      // or "all events". Otherwise apply directly to the whole series.
+                      if (needsScopeDecision && option.value !== event.recurrence) {
+                        setRepeatModalOpen(false);
+                        setScopeDecision({ kind: "repeat", recurrence: option.value });
+                        return;
+                      }
+                      applyRepeatChange(option.value, "all");
                     }}
                     className={cn(
                       "flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition",
@@ -1263,6 +1329,75 @@ export default function EventDetailsPage() {
               })}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Google Calendar-style "This and following / All events" scope modal.
+          Shown only when editing or deleting a recurring event from a specific
+          occurrence that is NOT the first occurrence of the series. */}
+      <Dialog
+        open={scopeDecision !== null}
+        onOpenChange={(open) => {
+          if (!open) setScopeDecision(null);
+        }}
+      >
+        <DialogContent className="max-w-[360px] rounded-[18px] p-5 space-y-4">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="!text-[18px] font-medium text-[var(--text-strong)]">
+              {scopeDecision?.kind === "delete"
+                ? "Delete recurring event"
+                : "Change recurring event"}
+            </DialogTitle>
+            <p className="text-sm text-[var(--text-muted)]">
+              {scopeDecision?.kind === "delete"
+                ? "Apply this deletion to:"
+                : "Apply this change to:"}
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl border px-3 py-3 text-left text-[15px] hover:bg-[var(--surface-2)]"
+              onClick={() => {
+                const decision = scopeDecision;
+                setScopeDecision(null);
+                if (decision?.kind === "repeat") {
+                  applyRepeatChange(decision.recurrence, "this_and_following");
+                } else if (decision?.kind === "delete") {
+                  applyDelete("this_and_following");
+                }
+              }}
+            >
+              This and following events
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl border px-3 py-3 text-left text-[15px] hover:bg-[var(--surface-2)]"
+              onClick={() => {
+                const decision = scopeDecision;
+                setScopeDecision(null);
+                if (decision?.kind === "repeat") {
+                  applyRepeatChange(decision.recurrence, "all");
+                } else if (decision?.kind === "delete") {
+                  applyDelete("all");
+                }
+              }}
+            >
+              All events
+            </button>
+          </div>
+
+          <DialogFooter className="sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setScopeDecision(null)}
+              className="!text-[14px]"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

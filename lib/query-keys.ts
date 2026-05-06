@@ -16,4 +16,5 @@ export const queryKeys = {
   feedbacks: ["feedbacks"] as const,
   userSearch: (query: string) => ["user-search", query] as const,
   notifications: ["notifications"] as const,
+  googleCalendarStatus: ["google-calendar-status"] as const,
 };

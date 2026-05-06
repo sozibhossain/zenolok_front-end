@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { Button } from "@/components/ui/button";
-import { authApi, eventApi, feedbackApi, userApi } from "@/lib/api";
+import { authApi, feedbackApi, googleCalendarApi, userApi } from "@/lib/api";
 import {
   getAlarmPresetLabel,
   resolveAlarmPresetOptions,
@@ -59,231 +59,6 @@ function resolveWeekStartDayFromWeekend(
   return weekStartDayOptions.some((option) => option.key === normalizedWeekendDay)
     ? (normalizedWeekendDay as WeekStartDay)
     : null;
-}
-
-const GOOGLE_GSI_SCRIPT_URL = "https://accounts.google.com/gsi/client";
-const GOOGLE_CALENDAR_SCOPE =
-  "https://www.googleapis.com/auth/calendar.readonly";
-const GOOGLE_CALENDAR_EVENTS_LIMIT = 100;
-
-type GoogleTokenResponse = {
-  access_token?: string;
-  error?: string;
-  error_description?: string;
-};
-
-type GoogleTokenClient = {
-  requestAccessToken: (config?: { prompt?: string }) => void;
-};
-
-type GoogleOAuth2Namespace = {
-  initTokenClient: (config: {
-    client_id: string;
-    scope: string;
-    callback: (response: GoogleTokenResponse) => void;
-    error_callback?: () => void;
-  }) => GoogleTokenClient;
-};
-
-type GoogleOAuthWindow = Window & {
-  google?: {
-    accounts?: {
-      oauth2?: GoogleOAuth2Namespace;
-    };
-  };
-};
-
-type GoogleCalendarEvent = {
-  id: string;
-  status?: string;
-  summary?: string;
-  location?: string;
-  start?: {
-    date?: string;
-    dateTime?: string;
-  };
-  end?: {
-    date?: string;
-    dateTime?: string;
-  };
-};
-
-type SyncCandidateEvent = {
-  title: string;
-  location?: string;
-  startTime: string;
-  endTime: string;
-  isAllDay: boolean;
-};
-
-function createSyncEventKey(event: SyncCandidateEvent) {
-  const title = event.title.trim().toLowerCase();
-  const location = (event.location || "").trim().toLowerCase();
-  const startTime = new Date(event.startTime).getTime();
-  const endTime = new Date(event.endTime).getTime();
-  const allDayFlag = event.isAllDay ? "1" : "0";
-
-  return `${title}|${location}|${startTime}|${endTime}|${allDayFlag}`;
-}
-
-function toSyncCandidateEvent(
-  googleEvent: GoogleCalendarEvent,
-): SyncCandidateEvent | null {
-  if (googleEvent.status === "cancelled") {
-    return null;
-  }
-
-  const title = (googleEvent.summary || "Untitled event").trim();
-  const location = googleEvent.location?.trim() || undefined;
-
-  if (googleEvent.start?.date && googleEvent.end?.date) {
-    const start = new Date(`${googleEvent.start.date}T00:00:00`);
-    const endExclusive = new Date(`${googleEvent.end.date}T00:00:00`);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(endExclusive.getTime())) {
-      return null;
-    }
-
-    const end = new Date(endExclusive.getTime() - 1);
-    if (end.getTime() < start.getTime()) {
-      return null;
-    }
-
-    return {
-      title,
-      location,
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
-      isAllDay: true,
-    };
-  }
-
-  if (googleEvent.start?.dateTime && googleEvent.end?.dateTime) {
-    const start = new Date(googleEvent.start.dateTime);
-    const end = new Date(googleEvent.end.dateTime);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return null;
-    }
-
-    if (end.getTime() <= start.getTime()) {
-      return null;
-    }
-
-    return {
-      title,
-      location,
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
-      isAllDay: false,
-    };
-  }
-
-  return null;
-}
-
-function loadGoogleIdentityScript() {
-  return new Promise<void>((resolve, reject) => {
-    if (typeof window === "undefined") {
-      reject(new Error("Google sign-in is only available in the browser"));
-      return;
-    }
-
-    const googleWindow = window as GoogleOAuthWindow;
-    if (googleWindow.google?.accounts?.oauth2) {
-      resolve();
-      return;
-    }
-
-    const existingScript = document.querySelector(
-      "script[data-google-gsi='true']",
-    ) as HTMLScriptElement | null;
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Failed to load Google sign-in script")),
-        { once: true },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = GOOGLE_GSI_SCRIPT_URL;
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleGsi = "true";
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error("Failed to load Google sign-in script"));
-    document.head.appendChild(script);
-  });
-}
-
-async function requestGoogleAccessToken(clientId: string) {
-  await loadGoogleIdentityScript();
-
-  const googleWindow = window as GoogleOAuthWindow;
-  const oauth2 = googleWindow.google?.accounts?.oauth2;
-
-  if (!oauth2) {
-    throw new Error("Google sign-in client is unavailable");
-  }
-
-  return new Promise<string>((resolve, reject) => {
-    const tokenClient = oauth2.initTokenClient({
-      client_id: clientId,
-      scope: GOOGLE_CALENDAR_SCOPE,
-      callback: (response) => {
-        if (response.error || !response.access_token) {
-          reject(
-            new Error(
-              response.error_description ||
-                response.error ||
-                "Failed to authorize Google Calendar",
-            ),
-          );
-          return;
-        }
-
-        resolve(response.access_token);
-      },
-      error_callback: () =>
-        reject(new Error("Google sign-in was cancelled or failed")),
-    });
-
-    tokenClient.requestAccessToken({ prompt: "consent" });
-  });
-}
-
-async function fetchGoogleCalendarEvents(accessToken: string) {
-  const url = new URL(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-  );
-  url.searchParams.set("singleEvents", "true");
-  url.searchParams.set("orderBy", "startTime");
-  url.searchParams.set("timeMin", new Date().toISOString());
-  url.searchParams.set("maxResults", String(GOOGLE_CALENDAR_EVENTS_LIMIT));
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  const data = (await response.json()) as {
-    items?: GoogleCalendarEvent[];
-    error?: { message?: string };
-  };
-
-  if (!response.ok) {
-    throw new Error(
-      data.error?.message || "Failed to fetch events from Google Calendar",
-    );
-  }
-
-  return data.items || [];
 }
 
 export default function SettingsPage() {
@@ -428,7 +203,28 @@ export default function SettingsPage() {
     if (modal === "week-start-day") {
       setActiveSection("weekStartDay");
     }
-  }, []);
+
+    const googleCalendarParam = params.get("googleCalendar");
+    if (googleCalendarParam === "connected") {
+      toast.success("Google Calendar connected — running first sync");
+      queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
+      googleCalendarApi.sync().then(() => {
+        queryClient.invalidateQueries({ queryKey: ["events"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
+      }).catch(() => {});
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete("googleCalendar");
+      cleaned.searchParams.delete("reason");
+      window.history.replaceState({}, "", cleaned.toString());
+    } else if (googleCalendarParam === "error") {
+      const reason = params.get("reason") || "unknown";
+      toast.error(`Google Calendar connect failed: ${reason}`);
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete("googleCalendar");
+      cleaned.searchParams.delete("reason");
+      window.history.replaceState({}, "", cleaned.toString());
+    }
+  }, [queryClient]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
@@ -609,107 +405,96 @@ export default function SettingsPage() {
     [notificationPrefs, updateNotificationMutation],
   );
 
-  const googleCalendarSyncMutation = useMutation({
-    mutationFn: async () => {
-      const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
-      if (!googleClientId) {
-        throw new Error("Google client ID is not configured");
-      }
+  const googleCalendarStatusQuery = useQuery({
+    queryKey: queryKeys.googleCalendarStatus,
+    queryFn: googleCalendarApi.getStatus,
+  });
 
-      const accessToken = await requestGoogleAccessToken(googleClientId);
-      const [googleEvents, existingEvents] = await Promise.all([
-        fetchGoogleCalendarEvents(accessToken),
-        eventApi.getAll({ filter: "all" }),
-      ]);
-
-      const existingEventKeys = new Set(
-        existingEvents
-          .map((event) => {
-            const start = new Date(event.startTime);
-            const end = new Date(event.endTime);
-            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-              return null;
-            }
-
-            return createSyncEventKey({
-              title: event.title || "Untitled event",
-              location: event.location || undefined,
-              startTime: start.toISOString(),
-              endTime: end.toISOString(),
-              isAllDay: Boolean(event.isAllDay),
-            });
-          })
-          .filter((key): key is string => Boolean(key)),
-      );
-
-      let imported = 0;
-      let skipped = 0;
-      let failed = 0;
-
-      for (const googleEvent of googleEvents) {
-        const candidate = toSyncCandidateEvent(googleEvent);
-        if (!candidate) {
-          skipped += 1;
-          continue;
-        }
-
-        const candidateKey = createSyncEventKey(candidate);
-        if (existingEventKeys.has(candidateKey)) {
-          skipped += 1;
-          continue;
-        }
-
-        try {
-          await eventApi.create({
-            title: candidate.title,
-            startTime: candidate.startTime,
-            endTime: candidate.endTime,
-            isAllDay: candidate.isAllDay,
-            location: candidate.location,
-            recurrence: "once",
-          });
-          existingEventKeys.add(candidateKey);
-          imported += 1;
-        } catch {
-          failed += 1;
-        }
-      }
-
-      return {
-        scanned: googleEvents.length,
-        imported,
-        skipped,
-        failed,
-      };
+  const connectGoogleCalendarMutation = useMutation({
+    mutationFn: async () => googleCalendarApi.getAuthUrl(),
+    onSuccess: ({ authUrl }) => {
+      window.location.href = authUrl;
     },
-    onSuccess: ({ scanned, imported, skipped, failed }) => {
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to start Google Calendar connection");
+    },
+  });
+
+  const googleCalendarSyncMutation = useMutation({
+    mutationFn: () => googleCalendarApi.sync(),
+    onSuccess: ({ inbound, outbound, inboundError, outboundError }) => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
 
-      if (!scanned) {
-        toast.info("No upcoming Google Calendar events found");
+      if (outboundError) {
+        toast.error(`Push to Google Calendar failed: ${outboundError}`);
         return;
       }
-
-      if (!imported && !failed) {
-        toast.info(`Google Calendar already in sync (${skipped} skipped)`);
+      if (inboundError) {
+        toast.error(`Pull from Google Calendar failed: ${inboundError}`);
         return;
       }
-
-      if (failed) {
-        toast.warning(
-          `Google sync finished: ${imported} imported, ${skipped} skipped, ${failed} failed`,
+      if (outbound.failed && outbound.firstError) {
+        toast.error(
+          `${outbound.failed} event(s) failed to push to Google: ${outbound.firstError}`,
         );
         return;
       }
 
-      toast.success(
-        `Google sync finished: ${imported} imported, ${skipped} skipped`,
-      );
+      const inboundChanges = inbound.imported + inbound.updated + inbound.cancelled;
+      if (!inboundChanges && !outbound.pushed && !outbound.failed) {
+        toast.info("Google Calendar already in sync");
+        return;
+      }
+
+      const parts: string[] = [];
+      if (inbound.imported) parts.push(`${inbound.imported} imported`);
+      if (inbound.updated) parts.push(`${inbound.updated} updated`);
+      if (inbound.cancelled) parts.push(`${inbound.cancelled} cancelled`);
+      if (outbound.pushed) parts.push(`${outbound.pushed} pushed to Google`);
+      if (outbound.failed) parts.push(`${outbound.failed} failed`);
+
+      toast.success(`Sync complete: ${parts.join(", ")}`);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Google Calendar sync failed");
     },
   });
+
+  const disconnectGoogleCalendarMutation = useMutation({
+    mutationFn: () => googleCalendarApi.disconnect(),
+    onSuccess: () => {
+      toast.success("Google Calendar disconnected");
+      queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendarStatus });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to disconnect Google Calendar");
+    },
+  });
+
+  // Single click handler for the existing "Sync Google Calendar" button:
+  // - If not connected → start Google OAuth (consent flow). After redirect-back,
+  //   the page-mount effect auto-runs the first sync.
+  // - If connected     → run two-way sync immediately.
+  const handleGoogleCalendarSyncClick = React.useCallback(() => {
+    if (googleCalendarStatusQuery.data?.connected) {
+      googleCalendarSyncMutation.mutate();
+    } else {
+      connectGoogleCalendarMutation.mutate();
+    }
+  }, [
+    googleCalendarStatusQuery.data?.connected,
+    googleCalendarSyncMutation,
+    connectGoogleCalendarMutation,
+  ]);
+
+  const isGoogleCalendarBusy =
+    googleCalendarStatusQuery.isLoading ||
+    connectGoogleCalendarMutation.isPending ||
+    googleCalendarSyncMutation.isPending;
+
+  // Reference disconnect mutation to silence unused warning — exposed for future UI.
+  void disconnectGoogleCalendarMutation;
 
   const changePasswordMutation = useMutation({
     mutationFn: () => authApi.changePassword({ oldPassword, newPassword }),
@@ -937,8 +722,8 @@ export default function SettingsPage() {
         return (
           <CalendarSection
             onManageWeekStartDay={() => setActiveSection("weekStartDay")}
-            onCalendarSync={() => googleCalendarSyncMutation.mutate()}
-            isCalendarSyncing={googleCalendarSyncMutation.isPending}
+            onCalendarSync={handleGoogleCalendarSyncClick}
+            isCalendarSyncing={isGoogleCalendarBusy}
           />
         );
       case "feedback":

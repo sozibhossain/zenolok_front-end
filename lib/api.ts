@@ -206,6 +206,8 @@ export interface EventData {
   alarmPreset?: AlarmPresetKey | null;
   customAlarmOffsets?: number[] | null;
   recurrence: "once" | "daily" | "weekly" | "monthly" | "yearly";
+  recurrenceUntil?: string | null;
+  seriesId?: string | null;
   notes?: string;
   personalNotes?: string;
   todos?: EventTodo[];
@@ -520,13 +522,74 @@ export const eventApi = {
     payload: Partial<Omit<EventData, "_id" | "createdAt" | "updatedAt" | "brick">> & {
       brick?: string;
       todos?: Array<{ _id?: string; text: string; isShared?: boolean; sortOrder?: number }>;
+      // For Google Calendar-style recurring edits:
+      // - "all"                  → update the whole series (default if omitted).
+      // - "this_and_following"   → cap the original series and create a new
+      //                            tail series starting at occurrenceDate.
+      editScope?: "all" | "this_and_following";
+      occurrenceDate?: string; // ISO date of the clicked occurrence
     }
-  ) => unwrap<EventData>(apiClient.patch(`/events/${id}`, payload)),
+  ) => unwrap<EventData & { splitFromEventId?: string }>(
+    apiClient.patch(`/events/${id}`, payload),
+  ),
   updateNotes: (id: string, payload: { notes: string }) =>
     unwrap<EventData>(apiClient.patch(`/events/${id}/notes`, payload)),
   updatePersonalNotes: (id: string, payload: { notes: string }) =>
     unwrap<EventData>(apiClient.patch(`/events/${id}/personal-notes`, payload)),
-  delete: (id: string) => unwrap<null>(apiClient.delete(`/events/${id}`)),
+  delete: (
+    id: string,
+    options?: {
+      editScope?: "all" | "this_and_following";
+      occurrenceDate?: string;
+    },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.editScope) params.set("editScope", options.editScope);
+    if (options?.occurrenceDate) params.set("occurrenceDate", options.occurrenceDate);
+    const query = params.toString();
+    return unwrap<null>(
+      apiClient.delete(`/events/${id}${query ? `?${query}` : ""}`),
+    );
+  },
+};
+
+export type GoogleCalendarStatus = {
+  connected: boolean;
+  email: string;
+  calendarId: string;
+  lastSyncedAt: string | null;
+};
+
+export type GoogleCalendarSyncResult = {
+  inbound: {
+    scanned: number;
+    imported: number;
+    updated: number;
+    cancelled: number;
+    skipped: number;
+  };
+  outbound: {
+    pushed: number;
+    failed: number;
+    total: number;
+    firstError?: string | null;
+  };
+  inboundError?: string | null;
+  outboundError?: string | null;
+};
+
+export const googleCalendarApi = {
+  getStatus: () =>
+    unwrap<GoogleCalendarStatus>(apiClient.get("/google-calendar/status")),
+  getAuthUrl: () =>
+    unwrap<{ authUrl: string }>(apiClient.get("/google-calendar/auth-url")),
+  exchange: (payload: { code: string; state: string }) =>
+    unwrap<{ connected: boolean; email: string }>(
+      publicApiClient.post("/google-calendar/exchange", payload),
+    ),
+  sync: () =>
+    unwrap<GoogleCalendarSyncResult>(apiClient.post("/google-calendar/sync")),
+  disconnect: () => unwrap<null>(apiClient.post("/google-calendar/disconnect")),
 };
 
 export const eventTodoApi = {
