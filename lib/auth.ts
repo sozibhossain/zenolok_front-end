@@ -8,7 +8,7 @@ const loginSchema = z.object({
 });
 
 function resolveAuthBaseURL() {
-  return (process.env.AUTH_API_BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTPUBLICBASEURL || "").replace(/\/+$/, "");
+  return (process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
 }
 
 const loginEnvelopeSchema = z.object({

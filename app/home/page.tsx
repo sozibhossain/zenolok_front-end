@@ -4,6 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   addDays,
+  addMonths,
+  addWeeks,
+  addYears,
   differenceInCalendarDays,
   eachDayOfInterval,
   endOfDay,
@@ -84,6 +87,7 @@ import { formatTimeRangeByPreference } from "@/lib/time-format";
 
 type CalendarEvent = {
   id: string;
+  originalId: string;
   title: string;
   start: Date;
   end: Date;
@@ -365,6 +369,55 @@ function parseDateTimeValue(value: string) {
   return parsed;
 }
 
+function expandRecurringEvent(
+  event: CalendarEvent,
+  rangeEnd: Date,
+): CalendarEvent[] {
+  if (event.recurrence === "once") {
+    return [event];
+  }
+
+  const occurrences: CalendarEvent[] = [event];
+  const durationMs = event.endAt.getTime() - event.startAt.getTime();
+  const rangeEndTime = rangeEnd.getTime();
+
+  let nextStart = event.startAt;
+  for (let index = 0; index < 400; index += 1) {
+    if (event.recurrence === "daily") {
+      nextStart = addDays(nextStart, 1);
+    } else if (event.recurrence === "weekly") {
+      nextStart = addWeeks(nextStart, 1);
+    } else if (event.recurrence === "monthly") {
+      nextStart = addMonths(nextStart, 1);
+    } else if (event.recurrence === "yearly") {
+      nextStart = addYears(nextStart, 1);
+    } else {
+      break;
+    }
+
+    if (nextStart.getTime() > rangeEndTime) {
+      break;
+    }
+
+    const nextEnd = new Date(nextStart.getTime() + durationMs);
+    const start = startOfDay(nextStart);
+    const rawEnd = startOfDay(nextEnd);
+    const end = rawEnd < start ? start : rawEnd;
+
+    occurrences.push({
+      ...event,
+      id: `${event.id}-rec-${format(start, "yyyy-MM-dd")}`,
+      startAt: nextStart,
+      endAt: nextEnd,
+      start,
+      end,
+      spansMultipleDays: differenceInCalendarDays(end, start) > 0,
+    });
+  }
+
+  return occurrences;
+}
+
 function buildWeekSegments(
   week: Date[],
   events: CalendarEvent[],
@@ -490,6 +543,10 @@ export default function HomePage() {
         endDate: calendarEndParam,
       }),
   });
+  const recurringEventsQuery = useQuery({
+    queryKey: queryKeys.events({ filter: "all" }),
+    queryFn: () => eventApi.getAll({ filter: "all" }),
+  });
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications,
     queryFn: notificationApi.getAll,
@@ -523,7 +580,30 @@ export default function HomePage() {
   }, [allBrickIds, effectiveSelectedBrickIds]);
 
   const normalizedEvents = React.useMemo<CalendarEvent[]>(() => {
-    return (eventsQuery.data || []).reduce<CalendarEvent[]>(
+    const expansionLimit = endOfDay(calendarEnd);
+    const seenIds = new Set<string>();
+    const sourceEvents: EventData[] = [];
+
+    for (const event of eventsQuery.data || []) {
+      if (seenIds.has(event._id)) {
+        continue;
+      }
+      seenIds.add(event._id);
+      sourceEvents.push(event);
+    }
+
+    for (const event of recurringEventsQuery.data || []) {
+      if (seenIds.has(event._id)) {
+        continue;
+      }
+      if (!event.recurrence || event.recurrence === "once") {
+        continue;
+      }
+      seenIds.add(event._id);
+      sourceEvents.push(event);
+    }
+
+    return sourceEvents.reduce<CalendarEvent[]>(
       (items, event: EventData) => {
         const startAt = parseDateTimeValue(event.startTime);
         const rawEndAt = parseDateTimeValue(event.endTime);
@@ -542,8 +622,9 @@ export default function HomePage() {
           ? exhibitionColor
           : event.brick?.color || NO_BRICK_EVENT_COLOR;
 
-        items.push({
+        const baseEvent: CalendarEvent = {
           id: event._id,
+          originalId: event._id,
           title: event.title,
           start,
           end,
@@ -575,12 +656,14 @@ export default function HomePage() {
               text: todo.text,
               isCompleted: todo.isCompleted,
             })),
-        });
+        };
+
+        items.push(...expandRecurringEvent(baseEvent, expansionLimit));
         return items;
       },
       [],
     );
-  }, [currentUserId, eventsQuery.data]);
+  }, [calendarEnd, currentUserId, eventsQuery.data, recurringEventsQuery.data]);
 
   const filteredEvents = React.useMemo(() => {
     if (!allBrickIds.length) {
@@ -1018,14 +1101,14 @@ export default function HomePage() {
                     className="home-event-card h-[102px] rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
                     role="button"
                     tabIndex={0}
-                    onClick={() => handleOpenEventDetails(event.id)}
+                    onClick={() => handleOpenEventDetails(event.originalId)}
                     onKeyDown={(keyEvent) => {
                       if (keyEvent.key !== "Enter" && keyEvent.key !== " ") {
                         return;
                       }
 
                       keyEvent.preventDefault();
-                      handleOpenEventDetails(event.id);
+                      handleOpenEventDetails(event.originalId);
                     }}
                   >
                     <div className="flex items-start justify-between gap-2.5">
@@ -1170,7 +1253,7 @@ export default function HomePage() {
                           color={event.color}
                           onToggle={() =>
                             toggleEventTodoMutation.mutate({
-                              eventId: event.id,
+                              eventId: event.originalId,
                               todoId: todo.id,
                               isCompleted: !todo.isCompleted,
                             })
@@ -1539,7 +1622,7 @@ export default function HomePage() {
                                                 onClick={(clickEvent) => {
                                                   clickEvent.preventDefault();
                                                   clickEvent.stopPropagation();
-                                                  handleOpenEventDetails(event.id);
+                                                  handleOpenEventDetails(event.originalId);
                                                 }}
                                               >
                                                 <span className="min-w-0 flex-1">
