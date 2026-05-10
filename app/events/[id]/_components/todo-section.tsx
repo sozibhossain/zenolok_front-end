@@ -33,6 +33,13 @@ const SAVED_DISPLAY_MS = 1500;
 
 const sortTodos = (items: EventTodo[]) =>
   [...items].sort((left, right) => {
+    const leftCompleted = left.isCompleted ? 1 : 0;
+    const rightCompleted = right.isCompleted ? 1 : 0;
+
+    if (leftCompleted !== rightCompleted) {
+      return leftCompleted - rightCompleted;
+    }
+
     const leftOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER;
     const rightOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER;
 
