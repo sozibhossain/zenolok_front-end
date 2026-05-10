@@ -39,6 +39,7 @@ import {
 } from "../_components/event-detail-helpers";
 import { JamMessageContent } from "../_components/jam-message-content";
 import { MessageComposer } from "../_components/message-composer";
+import { ParticipantShareDialog } from "../_components/participant-share-dialog";
 
 type MessageFilter = "all" | "media" | "files" | "link";
 
@@ -96,6 +97,8 @@ export default function EventMessagesPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
     null,
   );
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>([]);
   const hasMarkedMessageNotificationsReadRef = React.useRef(false);
   const hasScrolledToMessageRef = React.useRef<string | null>(null);
   const messageRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
@@ -217,6 +220,106 @@ export default function EventMessagesPage() {
   );
   const participants = useMemo(() => mapParticipants(event?.participants || []), [event?.participants]);
   const viewerId = profileQuery.data?._id;
+  const isEventOwner = Boolean(
+    viewerId && event && viewerId === event.createdBy,
+  );
+
+  const currentParticipantIds = useMemo(() => {
+    if (!event) {
+      return new Set<string>();
+    }
+    return new Set(
+      event.participants
+        .map((participant) =>
+          typeof participant === "string" ? participant : participant._id,
+        )
+        .filter((value): value is string => Boolean(value)),
+    );
+  }, [event]);
+
+  const usersQuery = useQuery({
+    queryKey: ["users-for-event-share"],
+    queryFn: async () => {
+      const firstPage = await userApi.getAll({ page: 1, limit: 200 });
+      const totalUsers = firstPage.meta.total;
+      if (totalUsers > firstPage.users.length) {
+        return userApi.getAll({ page: 1, limit: totalUsers });
+      }
+      return firstPage;
+    },
+    enabled: shareDialogOpen,
+  });
+
+  const updateEventMutation = useMutation({
+    mutationFn: (payload: Partial<EventData>) =>
+      eventApi.update(id, payload as Parameters<typeof eventApi.update>[1]),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.event(id), updated);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update event");
+    },
+  });
+
+  React.useEffect(() => {
+    if (!shareDialogOpen || !event) {
+      return;
+    }
+    setSelectedShareUserIds(
+      Array.from(
+        new Set(
+          event.participants
+            .map((participant) =>
+              typeof participant === "string"
+                ? participant
+                : participant._id,
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    );
+  }, [shareDialogOpen, event]);
+
+  const toggleShareUser = (userId: string, checked: boolean) => {
+    setSelectedShareUserIds((previous) => {
+      if (checked) {
+        if (previous.includes(userId)) {
+          return previous;
+        }
+        return [...previous, userId];
+      }
+      return previous.filter((value) => value !== userId);
+    });
+  };
+
+  const handleShareWithSelectedUsers = () => {
+    if (!isEventOwner) {
+      toast.error("Only the event creator can edit this event");
+      return;
+    }
+
+    const nextParticipantIds = Array.from(new Set(selectedShareUserIds));
+    const currentList = Array.from(currentParticipantIds);
+    const hasChanges =
+      nextParticipantIds.length !== currentList.length ||
+      nextParticipantIds.some(
+        (participantId) => !currentParticipantIds.has(participantId),
+      );
+
+    if (!hasChanges) {
+      toast.info("No participant changes");
+      return;
+    }
+
+    updateEventMutation.mutate(
+      { participants: nextParticipantIds } as Partial<EventData>,
+      {
+        onSuccess: () => {
+          setShareDialogOpen(false);
+        },
+      },
+    );
+  };
   const filteredMessages = useMemo(() => {
     if (activeFilter === "all") {
       return messages;
@@ -360,16 +463,33 @@ export default function EventMessagesPage() {
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center">
-              {participants.slice(0, 4).map((participant, index) => (
-                <Avatar
-                  key={participant._id}
-                  className={`size-7 border-2 border-[var(--border)] ${index === 0 ? "" : "-ml-2"}`}
-                >
-                  <AvatarImage src={participant.avatar?.url} />
-                  <AvatarFallback>{getParticipantDisplayName(participant).slice(0, 1)}</AvatarFallback>
-                </Avatar>
-              ))}
+            <div className="flex shrink-0 items-center gap-2">
+              {participants.length > 1 ? (
+                <div className="flex items-center">
+                  {participants.slice(0, 4).map((participant, index) => (
+                    <Avatar
+                      key={participant._id}
+                      className={`size-7 border-2 border-[var(--border)] ${index === 0 ? "" : "-ml-2"}`}
+                    >
+                      <AvatarImage src={participant.avatar?.url} />
+                      <AvatarFallback>{getParticipantDisplayName(participant).slice(0, 1)}</AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+              ) : null}
+              <ParticipantShareDialog
+                open={shareDialogOpen}
+                onOpenChange={setShareDialogOpen}
+                isEventOwner={isEventOwner}
+                allUsers={usersQuery.data?.users || []}
+                selectedUserIds={selectedShareUserIds}
+                currentParticipantIds={currentParticipantIds}
+                onToggleUser={toggleShareUser}
+                onSave={handleShareWithSelectedUsers}
+                isLoading={usersQuery.isLoading}
+                isError={usersQuery.isError}
+                isSaving={updateEventMutation.isPending}
+              />
             </div>
           </div>
         </div>
@@ -600,23 +720,23 @@ export default function EventMessagesPage() {
           }
         }}
       >
-        <DialogContent className="max-w-sm rounded-[22px] border border-[var(--ui-dialog-border)] bg-[var(--ui-dialog-bg)] p-5 text-[var(--text-default)]">
+        <DialogContent className="max-w-sm rounded-[22px] border border-[var(--ui-dialog-border)] bg-[var(--ui-dialog-bg)] p-5 text-[var(--text-default)] space-y-4">
           <DialogHeader>
-            <DialogTitle className="!text-[24px] font-medium text-[var(--text-strong)]">
+            <DialogTitle className="!text-[28px] font-medium text-[var(--text-strong)]">
               Delete this message?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-[14px] leading-[1.4] text-[var(--text-muted)]">
+          <p className="text-[18px] leading-[1.4] text-[var(--text-muted)]">
             This will remove it from the event chat.
           </p>
-          <DialogFooter className="mt-3 flex-row justify-end gap-2">
+          <DialogFooter className="mt-3 flex-row justify-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setDeleteTargetMessageId(null)}
               disabled={deleteMessageMutation.isPending}
-              className="!text-[14px]"
+              className="!text-[18px]"
             >
               Cancel
             </Button>
@@ -626,7 +746,7 @@ export default function EventMessagesPage() {
               size="sm"
               onClick={handleConfirmDeleteMessage}
               disabled={deleteMessageMutation.isPending}
-              className="!text-[14px]"
+              className="!text-[18px]"
             >
               {deleteMessageMutation.isPending ? "Deleting..." : "Delete"}
             </Button>

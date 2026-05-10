@@ -347,15 +347,13 @@ function CategoryCard({
             >
               <Trash2 className="size-3.5" strokeWidth={2} />
             </button>
-            {hasCollaborators ? (
-              <span
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none text-white"
-                style={{ backgroundColor: category.color }}
-                title={`${collaboratorCount} collaborator${collaboratorCount === 1 ? "" : "s"}`}
-              >
-                {collaboratorCount}
-              </span>
-            ) : null}
+            <span
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none text-white"
+              style={{ backgroundColor: category.color }}
+              title={`${items.length} todo${items.length === 1 ? "" : "s"}`}
+            >
+              {items.length}
+            </span>
           </div>
         </div>
       </div>
@@ -373,7 +371,7 @@ function CategoryCard({
         className="todo-category-card flex h-full min-h-[180px] flex-col rounded-[18px] bg-[var(--todo-card-bg)] p-3 transition hover:bg-[var(--todo-card-hover-bg)]"
       >
         <div className="space-y-2">
-          {[...items].reverse().slice(0, 5).map((item) => {
+          {items.slice(-5).map((item) => {
             const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
             const isChecked = item.isCompleted || isPendingDelete;
             const { isOverdue, isDateOnlyOverdue } = getScheduledOffsetMeta(
@@ -1881,6 +1879,7 @@ function TodosPageContent() {
           setDeleteTargetTodoId(todoId);
           setDeleteConfirmOpen(true);
         }}
+        onQuickAddTodo={handleQuickAddTodo}
       />
 
       <TodoEditorDialog

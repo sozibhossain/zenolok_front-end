@@ -1266,25 +1266,27 @@ export default function HomePage() {
 
                   {expanded ? (
                     <div className="drag-scrollbar-hidden mt-3 max-h-[132px] space-y-3 overflow-y-auto bg-transparent pl-8">
-                      {event.todos.map((todo) => (
-                        <HomeEventTodoRow
-                          key={todo.id}
-                          text={todo.text}
-                          completed={todo.isCompleted}
-                          color={event.color}
-                          onToggle={() =>
-                            toggleEventTodoMutation.mutate({
-                              eventId: event.originalId,
-                              todoId: todo.id,
-                              isCompleted: !todo.isCompleted,
-                            })
-                          }
-                          disabled={
-                            toggleEventTodoMutation.isPending &&
-                            toggleEventTodoMutation.variables?.todoId === todo.id
-                          }
-                        />
-                      ))}
+                      {[...event.todos]
+                        .sort((a, b) => Number(a.isCompleted) - Number(b.isCompleted))
+                        .map((todo) => (
+                          <HomeEventTodoRow
+                            key={todo.id}
+                            text={todo.text}
+                            completed={todo.isCompleted}
+                            color={event.color}
+                            onToggle={() =>
+                              toggleEventTodoMutation.mutate({
+                                eventId: event.originalId,
+                                todoId: todo.id,
+                                isCompleted: !todo.isCompleted,
+                              })
+                            }
+                            disabled={
+                              toggleEventTodoMutation.isPending &&
+                              toggleEventTodoMutation.variables?.todoId === todo.id
+                            }
+                          />
+                        ))}
                       <p className="pl-7 font-poppins text-sm text-[var(--text-muted)]">
                         New todo
                       </p>
@@ -1542,14 +1544,15 @@ export default function HomePage() {
                                         return (
                                           <div
                                             key={event.id}
-                                            className="flex h-[16px] min-w-0 items-center overflow-hidden rounded-[3px] px-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
-                                            style={{
-                                              backgroundColor: event.color,
-                                            }}
+                                            className="flex h-[16px] min-w-0 items-center gap-1.5 overflow-hidden"
                                           >
                                             <span
-                                              className="truncate font-poppins text-[13px] leading-none font-semibold text-white"
-                                            >
+                                              className="h-3 w-0.75 shrink-0 rounded-[1px]"
+                                              style={{
+                                                backgroundColor: event.color,
+                                              }}
+                                            />
+                                            <span className="truncate font-poppins text-[12px] leading-none font-semibold text-(--text-default)">
                                               {event.title}
                                             </span>
                                           </div>
@@ -1559,12 +1562,15 @@ export default function HomePage() {
                                       return (
                                         <div
                                           key={event.id}
-                                          className="flex h-[16px] min-w-0 items-center overflow-hidden rounded-[3px] px-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
-                                          style={{
-                                            backgroundColor: event.color,
-                                          }}
+                                          className="flex h-[16px] min-w-0 items-center gap-1.5 overflow-hidden"
                                         >
-                                          <span className="truncate font-poppins text-[13px] leading-none font-medium text-white">
+                                          <span
+                                            className="h-3 w-0.75 shrink-0 rounded-[1px]"
+                                            style={{
+                                              backgroundColor: event.color,
+                                            }}
+                                          />
+                                          <span className="truncate font-poppins text-[12px] leading-none font-medium text-(--text-default)">
                                             {event.title}
                                           </span>
                                         </div>
@@ -1693,17 +1699,16 @@ export default function HomePage() {
                                         style={{
                                           gridColumn: `${segment.startCol} / ${segment.endCol + 1}`,
                                           gridRow: segment.lane + 1,
-                                          backgroundColor: segment.color,
+                                          backgroundColor: `color-mix(in srgb, ${segment.color} 35%, transparent)`,
+                                          borderLeft: `3px solid ${segment.color}`,
                                         }}
-                                        className="flex h-[18px] min-w-0 items-center overflow-hidden px-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
+                                        className="flex h-4 min-w-0 items-center overflow-hidden pr-2 pl-1.5"
                                       >
-                                        {segment.isStart ? (
-                                          <span
-                                            className="truncate font-poppins text-[14px] leading-none font-semibold text-white"
-                                          >
-                                            {segment.title}
-                                          </span>
-                                        ) : null}
+                                        <span
+                                          className="truncate font-poppins text-[12px] leading-none font-semibold text-(--text-default)"
+                                        >
+                                          {segment.title}
+                                        </span>
                                       </div>
                                     );
                                   })}

@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import { format } from "date-fns";
-import { Bell, Repeat2, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Bell, Plus, Repeat2, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { TodoStatusCircleButton } from "@/components/shared/todo-status-circle";
@@ -27,6 +28,7 @@ type CategoryDetailDialogProps = {
   onToggleTodo: (todoId: string) => void;
   onEditTodo: (todoId: string) => void;
   onDeleteTodo: (todoId: string) => void;
+  onQuickAddTodo?: (categoryId: string, text: string) => void;
 };
 
 export function CategoryDetailDialog({
@@ -38,13 +40,30 @@ export function CategoryDetailDialog({
   onToggleTodo,
   onEditTodo,
   onDeleteTodo,
+  onQuickAddTodo,
 }: CategoryDetailDialogProps) {
   const { preferences } = useAppState();
+  const [newTodoText, setNewTodoText] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open) {
+      setNewTodoText("");
+    }
+  }, [open]);
+
+  const submitNewTodo = () => {
+    const trimmed = newTodoText.trim();
+    if (!trimmed || !selectedCategory || !onQuickAddTodo) {
+      return;
+    }
+    onQuickAddTodo(selectedCategory._id, trimmed);
+    setNewTodoText("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[820px] rounded-[30px] p-4 text-[var(--text-default)] sm:p-5">
-        <div className="space-y-3">
+      <DialogContent className="flex max-h-[80vh] max-w-[820px] flex-col rounded-[30px] p-4 text-[var(--text-default)] sm:p-5">
+        <div className="flex min-h-0 flex-1 flex-col space-y-3">
           <p
             className="font-poppins text-[28px] leading-[120%] font-semibold"
             style={{ color: selectedCategory?.color || "#EE8C0D" }}
@@ -52,8 +71,8 @@ export function CategoryDetailDialog({
             {selectedCategory?.name || "Category"}
           </p>
 
-          <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4">
-            <div className="space-y-2">
+          <div className="flex min-h-0 flex-1 flex-col rounded-[30px] border border-[var(--border)] bg-[var(--surface-2)] p-3 sm:p-4">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {selectedCategoryItems.map((item) => {
                 const isPendingDelete = Boolean(pendingDeleteMap[item._id]);
                 const isChecked = item.isCompleted || isPendingDelete;
@@ -136,6 +155,34 @@ export function CategoryDetailDialog({
                   </div>
                 );
               })}
+
+              {onQuickAddTodo ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    aria-label="Add new todo"
+                    onClick={submitNewTodo}
+                    className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border)] text-[var(--text-muted)] transition hover:bg-[var(--surface-1)] hover:text-[var(--text-default)]"
+                    style={{ color: selectedCategory?.color || undefined }}
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                  <input
+                    type="text"
+                    value={newTodoText}
+                    onChange={(event) => setNewTodoText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        submitNewTodo();
+                      }
+                    }}
+                    placeholder="New todo"
+                    aria-label={`Add todo to ${selectedCategory?.name ?? "category"}`}
+                    className="font-poppins flex-1 border-none bg-transparent text-[18px] text-[var(--text-default)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

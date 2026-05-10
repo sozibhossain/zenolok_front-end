@@ -38,6 +38,7 @@ type EventSummaryCardProps = {
   isParticipantsSaving: boolean;
   onOpenAlarmModal?: () => void;
   onOpenRepeatModal?: () => void;
+  onCardClick?: () => void;
 };
 
 export function EventSummaryCard({
@@ -57,7 +58,15 @@ export function EventSummaryCard({
   isParticipantsSaving,
   onOpenAlarmModal,
   onOpenRepeatModal,
+  onCardClick,
 }: EventSummaryCardProps) {
+  const stopPropagation = (
+    handler?: (event: React.MouseEvent<HTMLElement>) => void,
+  ) => (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    handler?.(event);
+  };
+  const showParticipants = participants.length > 1;
   const startsAt = new Date(event.startTime);
   const endsAt = new Date(event.endTime);
   const spansMultipleDays =
@@ -89,7 +98,11 @@ export function EventSummaryCard({
   const hasRepeat = event.recurrence !== "once";
 
   return (
-    <div className="event-details-card rounded-[18px] border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+    <div
+      className="event-details-card rounded-[18px] border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5 cursor-pointer"
+      onClick={onCardClick}
+      role={onCardClick ? "button" : undefined}
+    >
       <div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -120,27 +133,29 @@ export function EventSummaryCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center">
-                {participants.slice(0, 4).map((participant, index) => (
-                  <Avatar
-                    key={participant._id}
-                    className={`size-8 border-2 border-[var(--border)] ${
-                      index === 0 ? "" : "-ml-2.5"
-                    }`}
-                  >
-                    <AvatarImage src={participant.avatar?.url} />
-                    <AvatarFallback className="bg-[var(--surface-1)] text-[12px] text-[var(--text-muted)]">
-                      {getParticipantDisplayName(participant).slice(0, 1)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {participants.length > 4 ? (
-                  <span className="-ml-2.5 inline-flex h-8 min-w-8 items-center justify-center rounded-full border-2 border-[var(--border)] bg-[var(--surface-1)] px-1.5 text-[11px] font-medium text-[var(--text-muted)]">
-                    +{participants.length - 4}
-                  </span>
-                ) : null}
-              </div>
+            <div className="flex items-center gap-2" onClick={stopPropagation()}>
+              {showParticipants ? (
+                <div className="flex items-center">
+                  {participants.slice(0, 4).map((participant, index) => (
+                    <Avatar
+                      key={participant._id}
+                      className={`size-8 border-2 border-[var(--border)] ${
+                        index === 0 ? "" : "-ml-2.5"
+                      }`}
+                    >
+                      <AvatarImage src={participant.avatar?.url} />
+                      <AvatarFallback className="bg-[var(--surface-1)] text-[12px] text-[var(--text-muted)]">
+                        {getParticipantDisplayName(participant).slice(0, 1)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                  {participants.length > 4 ? (
+                    <span className="-ml-2.5 inline-flex h-8 min-w-8 items-center justify-center rounded-full border-2 border-[var(--border)] bg-[var(--surface-1)] px-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+                      +{participants.length - 4}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
 
               <ParticipantShareDialog
                 open={shareDialogOpen}
@@ -251,7 +266,7 @@ export function EventSummaryCard({
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
-                  onClick={onOpenAlarmModal}
+                  onClick={stopPropagation(() => onOpenAlarmModal?.())}
                   className={`flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition hover:bg-[var(--surface-3)] ${
                     hasAlarm
                       ? "text-[var(--text-default)]"
@@ -263,7 +278,7 @@ export function EventSummaryCard({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenRepeatModal}
+                  onClick={stopPropagation(() => onOpenRepeatModal?.())}
                   className={`flex size-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition hover:bg-[var(--surface-3)] ${
                     hasRepeat
                       ? "text-[var(--text-default)]"

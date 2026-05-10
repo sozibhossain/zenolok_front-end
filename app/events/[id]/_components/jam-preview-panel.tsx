@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Maximize2 } from "lucide-react";
+import { ImagePlus } from "lucide-react";
 
 import type { JamMessage } from "@/lib/api";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -100,28 +100,31 @@ export function JamPreviewPanel({
   onOpenMessagesPage,
   onOpenLibrary,
 }: JamPreviewPanelProps) {
+  const stop = (
+    handler?: (event: React.MouseEvent<HTMLElement>) => void,
+  ) => (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    handler?.(event);
+  };
+
   return (
-    <>
+    <div
+      className="cursor-pointer"
+      onClick={onOpenMessagesPage}
+      role="button"
+    >
       <div className="mb-2 flex items-center justify-end gap-1">
         <button
           type="button"
           className="rounded-full p-1 text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
-          onClick={onOpenMessagesPage}
-          aria-label="Open messages page"
-        >
-          <Maximize2 className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="rounded-full p-1 text-[var(--text-muted)] transition hover:bg-[var(--surface-3)]"
-          onClick={onOpenLibrary}
+          onClick={stop(() => onOpenLibrary())}
           aria-label="Open media files and links"
         >
           <ImagePlus className="size-4" />
         </button>
       </div>
 
-      <div className="max-h-[300px] space-y-3 overflow-auto rounded-[22px] bg-[var(--surface-3)] p-2">
+      <div className="max-h-150 space-y-3 overflow-auto rounded-[22px] bg-[var(--surface-3)] p-2">
         {isLoading ? (
           <SectionLoading rows={3} />
         ) : messages.length ? (
@@ -141,7 +144,7 @@ export function JamPreviewPanel({
         )}
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3" onClick={stop()}>
         <MessageComposer
           messageText={messageText}
           onMessageChange={onMessageChange}
@@ -151,6 +154,6 @@ export function JamPreviewPanel({
           isSending={isSending}
         />
       </div>
-    </>
+    </div>
   );
 }

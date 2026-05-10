@@ -761,22 +761,22 @@ export default function EventDetailsPage() {
       </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="max-w-sm rounded-[22px] space-y-2">
+        <DialogContent className="max-w-sm rounded-[22px] space-y-4">
           <DialogHeader>
-            <DialogTitle className="!text-[24px] font-medium text-[var(--text-strong)]">
+            <DialogTitle className="font-poppins !text-[28px] leading-7! font-semibold! text-(--text-strong)">
               Delete this event?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-[var(--text-muted)]">
+          <p className="font-poppins !text-[24px] leading-5 text-(--text-muted) text-center">
             This action cannot be undone.
           </p>
-          <DialogFooter className="gap-2 sm:justify-end">
+          <DialogFooter className="gap-2 sm:justify-center">
             <Button
               type="button"
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={deleteEventMutation.isPending}
-              className="!text-[14px]"
+              className="!text-[24px]"
             >
               No
             </Button>
@@ -791,7 +791,7 @@ export default function EventDetailsPage() {
                 }
                 applyDelete("all");
               }}
-              className="!text-[14px]"
+              className="!text-[24px]"
               disabled={deleteEventMutation.isPending}
             >
               {deleteEventMutation.isPending ? "Deleting..." : "Yes"}
@@ -938,6 +938,7 @@ export default function EventDetailsPage() {
           isParticipantsSaving={updateEventMutation.isPending}
           onOpenAlarmModal={() => setAlarmModalOpen(true)}
           onOpenRepeatModal={() => setRepeatModalOpen(true)}
+          onCardClick={() => router.push(`/events/${id}/messages`)}
         />
 
         <div className="mt-3 space-y-3">
@@ -1064,10 +1065,7 @@ export default function EventDetailsPage() {
                 onSend={() => sendMessageMutation.mutate()}
                 isSending={sendMessageMutation.isPending}
                 onOpenMessagesPage={() => router.push(`/events/${id}/messages`)}
-                onOpenLibrary={() => {
-                  setLibraryTab("media");
-                  setJamView("media");
-                }}
+                onOpenLibrary={() => router.push(`/events/${id}/gallery`)}
               />
             )}
           </Card>
@@ -1343,7 +1341,7 @@ export default function EventDetailsPage() {
       >
         <DialogContent className="max-w-[360px] rounded-[18px] p-5 space-y-4">
           <DialogHeader className="space-y-1">
-            <DialogTitle className="!text-[18px] font-medium text-[var(--text-strong)]">
+            <DialogTitle className="!text-[28px] font-medium text-[var(--text-strong)]">
               {scopeDecision?.kind === "delete"
                 ? "Delete recurring event"
                 : "Change recurring event"}
@@ -1393,7 +1391,7 @@ export default function EventDetailsPage() {
               type="button"
               variant="outline"
               onClick={() => setScopeDecision(null)}
-              className="!text-[14px]"
+              className="!text-[24px]"
             >
               Cancel
             </Button>
