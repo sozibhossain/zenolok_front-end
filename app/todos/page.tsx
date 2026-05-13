@@ -1280,7 +1280,7 @@ function TodosPageContent() {
         scheduledDate: null,
         scheduledTime: null,
         alarm: null,
-        alarmPreset: "preset_1",
+        alarmPreset: "none",
         repeat: null,
       });
     },

@@ -73,6 +73,14 @@ export function MessageComposer({
           ref={textareaRef}
           value={messageText}
           onChange={(event) => onMessageChange(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              if (messageText.trim() && !isSending) {
+                onSend();
+              }
+            }
+          }}
           placeholder="Type here..."
           rows={1}
           className="w-full resize-none overflow-y-hidden rounded border-none bg-transparent px-0 py-2 text-[16px] leading-[22px] text-[var(--text-default)] placeholder:text-[24px] placeholder:text-[var(--text-muted)] focus:outline-none"

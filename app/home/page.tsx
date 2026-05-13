@@ -123,6 +123,7 @@ type WeekSegment = {
   isEnd: boolean;
 };
 
+const HOME_TODO_CREATE_DEBOUNCE_MS = 1000;
 const CALENDAR_SEGMENT_ROW_HEIGHT = 18;
 const CALENDAR_SEGMENT_ROW_GAP = 0;
 const CALENDAR_SEGMENT_TOP_OFFSET = 40;
@@ -221,6 +222,117 @@ function HomeEventTodoRow({
         {text}
       </span>
     </button>
+  );
+}
+
+function HomeEventTodoCreateInput({
+  onAdd,
+}: {
+  onAdd: (text: string) => Promise<void> | Promise<unknown> | void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestValueRef = React.useRef("");
+  const [value, setValue] = React.useState("");
+  const [saveState, setSaveState] = React.useState<"idle" | "saving">("idle");
+
+  React.useEffect(() => {
+    latestValueRef.current = value;
+  }, [value]);
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const stopPropagation = React.useCallback(
+    (event: React.SyntheticEvent) => {
+      event.stopPropagation();
+    },
+    [],
+  );
+
+  const restoreFocus = React.useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = React.useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const trimmed = latestValueRef.current.trim();
+    if (!trimmed) {
+      restoreFocus();
+      return;
+    }
+
+    setSaveState("saving");
+    try {
+      await onAdd(trimmed);
+      setValue("");
+      latestValueRef.current = "";
+    } catch {
+      // Caller handles error display.
+    } finally {
+      setSaveState("idle");
+      requestAnimationFrame(() => {
+        restoreFocus();
+      });
+    }
+  }, [onAdd, restoreFocus]);
+
+  const handleChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const nextValue = event.target.value;
+      setValue(nextValue);
+      latestValueRef.current = nextValue;
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+
+      if (!nextValue.trim()) {
+        return;
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        void submit();
+      }, HOME_TODO_CREATE_DEBOUNCE_MS);
+    },
+    [submit],
+  );
+
+  return (
+    <div
+      className="pl-7"
+      onClick={stopPropagation}
+      onMouseDown={stopPropagation}
+    >
+      <Input
+        ref={inputRef}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key !== "Enter") {
+            return;
+          }
+
+          event.preventDefault();
+          void submit();
+        }}
+        placeholder="New todo"
+        disabled={saveState === "saving"}
+        className="h-auto border-none bg-transparent px-0 py-0 font-poppins text-sm text-[var(--text-muted)] shadow-none placeholder:text-[var(--text-muted)] focus-visible:ring-0"
+        aria-label="Create new todo"
+      />
+    </div>
   );
 }
 
@@ -931,6 +1043,33 @@ export default function HomePage() {
     onError: (error: Error) =>
       toast.error(error.message || "Failed to create event"),
   });
+  const createEventTodoMutation = useMutation({
+    mutationFn: ({
+      eventId,
+      text,
+    }: {
+      eventId: string;
+      text: string;
+    }) => {
+      if (!text.trim()) {
+        throw new Error("Todo text is required");
+      }
+
+      return eventTodoApi.create({
+        eventId,
+        text: text.trim(),
+      });
+    },
+    onSuccess: (_todo, { eventId }) => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.eventTodos(eventId),
+      });
+    },
+    onError: (error: Error) =>
+      toast.error(error.message || "Failed to add todo"),
+  });
   const toggleEventTodoMutation = useMutation({
     mutationFn: ({
       todoId,
@@ -1287,9 +1426,14 @@ export default function HomePage() {
                             }
                           />
                         ))}
-                      <p className="pl-7 font-poppins text-sm text-[var(--text-muted)]">
-                        New todo
-                      </p>
+                      <HomeEventTodoCreateInput
+                        onAdd={(text) =>
+                          createEventTodoMutation.mutateAsync({
+                            eventId: event.originalId,
+                            text,
+                          })
+                        }
+                      />
                     </div>
                   ) : null}
                 </div>

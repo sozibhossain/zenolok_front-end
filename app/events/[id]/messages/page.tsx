@@ -35,13 +35,10 @@ import {
   formatMessageStamp,
   getMessageAttachmentKind,
   getMessageAvatarUrl,
-  isLinkMessage,
 } from "../_components/event-detail-helpers";
 import { JamMessageContent } from "../_components/jam-message-content";
 import { MessageComposer } from "../_components/message-composer";
 import { ParticipantShareDialog } from "../_components/participant-share-dialog";
-
-type MessageFilter = "all" | "media" | "files" | "link";
 
 function mapParticipants(participants: EventData["participants"]) {
   const mapped = participants
@@ -92,7 +89,6 @@ export default function EventMessagesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [activeFilter, setActiveFilter] = useState<MessageFilter>("all");
   const [deleteTargetMessageId, setDeleteTargetMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
     null,
@@ -320,26 +316,6 @@ export default function EventMessagesPage() {
       },
     );
   };
-  const filteredMessages = useMemo(() => {
-    if (activeFilter === "all") {
-      return messages;
-    }
-
-    return messages.filter((message) => {
-      const attachmentKind = getMessageAttachmentKind(message);
-
-      if (activeFilter === "media") {
-        return attachmentKind === "image" || attachmentKind === "video";
-      }
-
-      if (activeFilter === "files") {
-        return attachmentKind === "file";
-      }
-
-      return isLinkMessage(message);
-    });
-  }, [activeFilter, messages]);
-
   const handleStartEditing = (message: JamMessage) => {
     if (getMessageAttachmentKind(message) === "image") {
       return;
@@ -400,11 +376,6 @@ export default function EventMessagesPage() {
   }, [event, id, markEventMessagesReadMutation]);
 
   React.useEffect(() => {
-    setEditingMessageId(null);
-    setEditingText("");
-  }, [activeFilter]);
-
-  React.useEffect(() => {
     if (!targetMessageId) {
       hasScrolledToMessageRef.current = null;
       setHighlightedMessageId(null);
@@ -430,7 +401,7 @@ export default function EventMessagesPage() {
         );
       }, 2400);
     });
-  }, [filteredMessages, targetMessageId]);
+  }, [messages, targetMessageId]);
 
   if (eventQuery.isLoading || messagesQuery.isLoading) {
     return <SectionLoading rows={8} />;
@@ -504,37 +475,20 @@ export default function EventMessagesPage() {
             >
               <ArrowLeft className="size-4" />
             </button>
-            <div className="flex items-center gap-2">
-              <ImagePlus className="size-3.5" />
-              <div className="grid grid-cols-4 rounded-full bg-[var(--surface-3)] p-1 text-[11px]">
-                {(
-                  [
-                    { key: "all", label: "All" },
-                    { key: "media", label: "Media" },
-                    { key: "files", label: "Files" },
-                    { key: "link", label: "Link" },
-                  ] as const
-                ).map((filter) => (
-                  <button
-                    key={filter.key}
-                    type="button"
-                    className={`rounded-full px-2.5 py-1 leading-none transition ${
-                      activeFilter === filter.key
-                        ? "bg-[var(--surface-1)] text-[var(--text-strong)]"
-                        : "text-[var(--text-muted)]"
-                    }`}
-                    onClick={() => setActiveFilter(filter.key)}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/events/${id}/gallery`)}
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--surface-3)] px-4 py-2 text-[15px] text-[var(--text-muted)] transition hover:bg-[var(--surface-1)] hover:text-[var(--text-strong)]"
+              aria-label="Open media, files, and links gallery"
+            >
+              <ImagePlus className="size-4" />
+              <span>Media, files, link</span>
+            </button>
           </div>
 
           <div className="max-h-[58vh] space-y-3 overflow-auto rounded-[22px] bg-[var(--surface-3)] p-2">
-            {filteredMessages.length ? (
-              filteredMessages.map((message) => {
+            {messages.length ? (
+              messages.map((message) => {
                 const rawName = (message.user.name || message.user.username || "").trim();
                 const isMe = viewerId ? message.user._id === viewerId : rawName === "Me";
                 const displayName = isMe ? "Me" : rawName || "User";
@@ -685,16 +639,8 @@ export default function EventMessagesPage() {
               })
             ) : (
               <EmptyState
-                title={
-                  activeFilter === "all"
-                    ? "No messages"
-                    : `No ${activeFilter === "link" ? "links" : activeFilter}`
-                }
-                description={
-                  activeFilter === "all"
-                    ? "Start chatting with participants."
-                    : `No ${activeFilter === "link" ? "links" : activeFilter} shared yet.`
-                }
+                title="No messages"
+                description="Start chatting with participants."
               />
             )}
           </div>
