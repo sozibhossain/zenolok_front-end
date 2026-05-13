@@ -180,19 +180,19 @@ export function EventSummaryCard({
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5">
                     <div
-                      className="inline-grid items-center gap-x-3 gap-y-0.5"
-                      style={{ gridTemplateColumns: "20px auto auto auto" }}
+                      className="inline-grid items-center gap-x-3"
+                      style={{ gridTemplateColumns: "20px auto auto auto", rowGap: 0 }}
                     >
-                      {/* Day labels */}
+                      {/* Day labels row */}
                       <span />
-                      <p className="font-poppins text-[12px] leading-none font-medium text-[var(--text-muted)]">
+                      <p className="font-poppins text-[12px] leading-none font-medium text-[var(--text-muted)] pb-0.5">
                         {startDayLabel}
                       </p>
                       <span />
-                      <p className="font-poppins text-[12px] leading-none font-medium text-[var(--text-muted)]">
+                      <p className="font-poppins text-[12px] leading-none font-medium text-[var(--text-muted)] pb-0.5">
                         {endDayLabel}
                       </p>
-                      {/* Dates */}
+                      {/* Dates row */}
                       <CalendarDays className="size-5 text-[var(--text-muted)]" />
                       <span className="font-poppins text-[16px] font-semibold leading-[120%] text-[var(--text-default)]">
                         {startDateLabel}
@@ -203,19 +203,20 @@ export function EventSummaryCard({
                       <span className="font-poppins text-[16px] font-semibold leading-[120%] text-[var(--text-default)]">
                         {endDateLabel}
                       </span>
-                      {/* Arrows */}
-                      <span />
-                      <ArrowUpDown className="mx-auto size-3 text-[var(--text-muted)]" />
-                      <span />
-                      <ArrowUpDown className="mx-auto size-3 text-[var(--text-muted)]" />
-                      {/* Times */}
-                      <Clock3 className="size-5 text-[var(--text-muted)]" />
-                      <span className="font-poppins text-[16px] font-semibold leading-none text-[var(--text-default)]">
-                        {startTimeLabel}
+                      {/* Times row — arrow sits inline above each time value */}
+                      <Clock3 className="size-5 text-[var(--text-muted)] mt-2" />
+                      <span className="mt-2 flex flex-col">
+                        <ArrowUpDown className="size-3 text-[var(--text-muted)] mb-0.5" />
+                        <span className="font-poppins text-[16px] font-semibold leading-none text-[var(--text-default)]">
+                          {startTimeLabel}
+                        </span>
                       </span>
                       <span />
-                      <span className="font-poppins text-[16px] font-semibold leading-none text-[var(--text-default)]">
-                        {endTimeLabel || ""}
+                      <span className="mt-2 flex flex-col">
+                        <ArrowUpDown className="size-3 text-[var(--text-muted)] mb-0.5" />
+                        <span className="font-poppins text-[16px] font-semibold leading-none text-[var(--text-default)]">
+                          {endTimeLabel || ""}
+                        </span>
                       </span>
                     </div>
                   </div>

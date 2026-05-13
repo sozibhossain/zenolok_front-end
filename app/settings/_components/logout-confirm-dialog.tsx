@@ -29,7 +29,7 @@ export function LogoutConfirmDialog({ isPending, open, onConfirm, onOpenChange }
           <Button
             type="button"
             variant="outline"
-            className="font-poppins h-8 min-w-[92px] rounded-xl !text-[18px] leading-[120%] font-medium"
+            className="font-poppins h-8 min-w-[92px] rounded-xl !text-[24px] leading-[120%] font-medium"
             onClick={() => onOpenChange(false)}
           >
             No
@@ -37,7 +37,7 @@ export function LogoutConfirmDialog({ isPending, open, onConfirm, onOpenChange }
           <Button
             type="button"
             variant="destructive"
-            className="font-poppins h-8 min-w-[92px] rounded-xl !text-[18px] leading-[120%] font-medium"
+            className="font-poppins h-8 min-w-[92px] rounded-xl !text-[24px] leading-[120%] font-medium"
             onClick={onConfirm}
             disabled={isPending}
           >

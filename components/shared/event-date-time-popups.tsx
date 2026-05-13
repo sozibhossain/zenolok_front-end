@@ -49,6 +49,8 @@ type TimeRangePopupProps = {
   endTime: string;
   onApply: (value: TimeRangeValue) => void;
   selectionMode?: "range" | "single";
+  displayDate?: string;
+  displayEndDate?: string;
 };
 
 function parseDateValue(value: string) {
@@ -709,6 +711,8 @@ export function EventTimeRangePopup({
   endTime,
   onApply,
   selectionMode = "range",
+  displayDate,
+  displayEndDate,
 }: TimeRangePopupProps) {
   const { preferences } = useAppState();
   const [draftStartDigits, setDraftStartDigits] = React.useState<TimeDigits>(createEmptyTimeDigits());
@@ -717,7 +721,11 @@ export function EventTimeRangePopup({
   const [draftEndMeridiem, setDraftEndMeridiem] = React.useState<Meridiem>("AM");
   const [activeField, setActiveField] = React.useState<"start" | "end">("start");
   const [activeDigitIndex, setActiveDigitIndex] = React.useState(0);
+  // For period (range) events, guide the user one step at a time: start → end
+  const [step, setStep] = React.useState<"start" | "end">("start");
   const isSingleMode = selectionMode === "single";
+  // In range mode, show one field at a time; in single mode, show only the one field
+  const isPeriodMode = !isSingleMode;
 
   React.useEffect(() => {
     if (!open) {
@@ -736,6 +744,7 @@ export function EventTimeRangePopup({
     setDraftEndMeridiem(nextEndDraft.meridiem);
     setActiveField("start");
     setActiveDigitIndex(0);
+    setStep("start");
   }, [endTime, isSingleMode, open, preferences.use24Hour, startTime]);
 
   const updateDigitsForField = (
@@ -781,19 +790,13 @@ export function EventTimeRangePopup({
 
     if (activeDigitIndex < 3) {
       setActiveDigitIndex((prev) => prev + 1);
-      return;
     }
-
-    if (activeField === "start" && !isSingleMode) {
-      setActiveField("end");
-      setActiveDigitIndex(0);
-    }
+    // In period mode, do NOT auto-jump to end field; user clicks Next to advance
   }, [
     activeDigitIndex,
     activeField,
     draftEndDigits,
     draftStartDigits,
-    isSingleMode,
     preferences.use24Hour,
   ]);
 
@@ -868,7 +871,14 @@ export function EventTimeRangePopup({
     startMinutes !== null &&
     endMinutes !== null &&
     endMinutes < startMinutes;
-  const canApply = isStartValid && isEndValid;
+  // End time must be strictly after start time (rolls-to-next-day is ok, that's handled separately)
+  const endTimeInvalid =
+    !isSingleMode &&
+    startMinutes !== null &&
+    endMinutes !== null &&
+    endMinutes === startMinutes;
+  const canNext = isStartValid;
+  const canApply = isStartValid && isEndValid && !endTimeInvalid;
   const formatLabel = preferences.use24Hour ? "24-hour format" : "12-hour format";
   const keypadDigits = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const shortcuts = [
@@ -959,12 +969,6 @@ export function EventTimeRangePopup({
 
         if (activeDigitIndex > 0) {
           setActiveDigitIndex((previous) => previous - 1);
-          return;
-        }
-
-        if (!isSingleMode && activeField === "end") {
-          setActiveField("start");
-          setActiveDigitIndex(3);
         }
         return;
       }
@@ -974,29 +978,19 @@ export function EventTimeRangePopup({
 
         if (activeDigitIndex < 3) {
           setActiveDigitIndex((previous) => previous + 1);
-          return;
         }
-
-        if (!isSingleMode && activeField === "start") {
-          setActiveField("end");
-          setActiveDigitIndex(0);
-        }
-        return;
-      }
-
-      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        if (isSingleMode) {
-          return;
-        }
-
-        event.preventDefault();
-        setActiveField((previous) => (previous === "start" ? "end" : "start"));
         return;
       }
 
       if (event.key === "Enter") {
         event.preventDefault();
-        applySelection();
+        if (isPeriodMode && step === "start" && canNext) {
+          setStep("end");
+          setActiveField("end");
+          setActiveDigitIndex(0);
+        } else {
+          applySelection();
+        }
       }
     };
 
@@ -1009,13 +1003,38 @@ export function EventTimeRangePopup({
     activeDigitIndex,
     activeField,
     applySelection,
+    canNext,
     handleBackspace,
     handleClear,
     handleDigit,
-    isSingleMode,
+    isPeriodMode,
     open,
     preferences.use24Hour,
+    step,
   ]);
+
+  // Show start date on start step, end date on end step (falls back to displayDate if no end date given)
+  const activeDateString = isPeriodMode && step === "end" ? (displayEndDate || displayDate) : displayDate;
+  const parsedDisplayDate = activeDateString ? parseDateValue(activeDateString) : null;
+  const displayDateLabel = parsedDisplayDate
+    ? format(parsedDisplayDate, "EEEE, d MMM yyyy")
+    : null;
+
+  // Which field is currently active in the step flow
+  const currentField: "start" | "end" = isPeriodMode ? step : "start";
+
+  const handleNext = () => {
+    if (!canNext) return;
+    setStep("end");
+    setActiveField("end");
+    setActiveDigitIndex(0);
+  };
+
+  const handleBack = () => {
+    setStep("start");
+    setActiveField("start");
+    setActiveDigitIndex(0);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1024,35 +1043,86 @@ export function EventTimeRangePopup({
         className="max-w-[380px] rounded-[26px] border-[var(--ui-calendar-popup-border)] bg-[var(--ui-calendar-popup-bg)] p-4 text-[var(--ui-calendar-popup-strong)]"
       >
         <div className="space-y-3">
-          <PopupTitle icon={Clock3}>Set time</PopupTitle>
+          <div className="flex items-start justify-between">
+            <PopupTitle icon={Clock3}>Set time</PopupTitle>
+            {displayDateLabel ? (
+              <p className="text-right text-[11px] leading-tight text-[var(--ui-calendar-popup-subtle)]">
+                {displayDateLabel}
+              </p>
+            ) : null}
+          </div>
 
           <div className="space-y-3 rounded-[22px] bg-[var(--ui-calendar-popup-panel-bg)] p-3">
-            <div className={`grid gap-2 ${isSingleMode ? "grid-cols-1" : "grid-cols-2"}`}>
-              <TimeDigitSlots
-                label="Start Time"
-                digits={draftStartDigits}
-                meridiem={draftStartMeridiem}
-                use24Hour={preferences.use24Hour}
-                singleMode={isSingleMode}
-                activeField={activeField === "start"}
-                activeIndex={activeField === "start" ? activeDigitIndex : -1}
-                onDigitClick={(index) => selectDigit("start", index)}
-                onMeridiemChange={(value) => updateMeridiemForField("start", value)}
-              />
-              {!isSingleMode ? (
+            {/* Step indicator for period events */}
+            {isPeriodMode ? (
+              <div className="flex items-center gap-2">
+                {step === "end" ? (
+                  <motion.button
+                    type="button"
+                    onClick={handleBack}
+                    className="rounded-full p-1 text-[var(--ui-calendar-popup-nav)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)]"
+                    aria-label="Back to start time"
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <ChevronLeft className="size-4" />
+                  </motion.button>
+                ) : (
+                  <span className="size-6" />
+                )}
+                <div className="flex flex-1 items-center justify-center gap-2">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={step}
+                      className="text-[13px] font-medium text-[var(--ui-calendar-popup-strong)]"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      {step === "start" ? "Set Start Time" : "Set End Time"}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
+                {/* step dots */}
+                <div className="flex items-center gap-1">
+                  <span className={`size-1.5 rounded-full transition-colors ${step === "start" ? "bg-[var(--ui-calendar-accent)]" : "bg-[var(--ui-calendar-popup-input-border)]"}`} />
+                  <span className={`size-1.5 rounded-full transition-colors ${step === "end" ? "bg-[var(--ui-calendar-accent)]" : "bg-[var(--ui-calendar-popup-input-border)]"}`} />
+                </div>
+              </div>
+            ) : null}
+
+            {/* Single active slot shown at a time for period mode; both for single mode */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={isPeriodMode ? step : "single"}
+                initial={{ opacity: 0, x: isPeriodMode ? (step === "end" ? 16 : -16) : 0 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: isPeriodMode ? (step === "end" ? -16 : 16) : 0 }}
+                transition={{ duration: 0.2 }}
+              >
                 <TimeDigitSlots
-                  label="End Time"
-                  digits={draftEndDigits}
-                  meridiem={draftEndMeridiem}
+                  label={isPeriodMode ? (step === "start" ? "Start Time" : "End Time") : "Start Time"}
+                  digits={currentField === "start" ? draftStartDigits : draftEndDigits}
+                  meridiem={currentField === "start" ? draftStartMeridiem : draftEndMeridiem}
                   use24Hour={preferences.use24Hour}
-                  singleMode={false}
-                  activeField={activeField === "end"}
-                  activeIndex={activeField === "end" ? activeDigitIndex : -1}
-                  onDigitClick={(index) => selectDigit("end", index)}
-                  onMeridiemChange={(value) => updateMeridiemForField("end", value)}
+                  singleMode
+                  activeField
+                  activeIndex={activeDigitIndex}
+                  onDigitClick={(index) => selectDigit(currentField, index)}
+                  onMeridiemChange={(value) => updateMeridiemForField(currentField, value)}
                 />
-              ) : null}
-            </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Summary row showing confirmed start time when on end step */}
+            {isPeriodMode && step === "end" && isStartValid ? (
+              <div className="flex items-center justify-center gap-1 text-[11px] text-[var(--ui-calendar-popup-subtle)]">
+                <span>Start:</span>
+                <span className="font-medium text-[var(--ui-calendar-popup-strong)]">
+                  {timeDigitsToValue(draftStartDigits, draftStartMeridiem, preferences.use24Hour)}
+                </span>
+              </div>
+            ) : null}
 
             <div className="flex items-center gap-3 px-1">
               <span className="h-px flex-1 bg-[var(--ui-calendar-popup-input-border)]" />
@@ -1062,7 +1132,7 @@ export function EventTimeRangePopup({
               <span className="h-px flex-1 bg-[var(--ui-calendar-popup-input-border)]" />
             </div>
 
-            <div className={`grid gap-3 ${isSingleMode ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_56px]"}`}>
+            <div className={`grid gap-3 ${(isPeriodMode && step === "end") ? "grid-cols-[minmax(0,1fr)_56px]" : "grid-cols-1"}`}>
               <div className="grid grid-cols-3 gap-x-3 gap-y-2">
                 {keypadDigits.map((digit) => (
                   <motion.button
@@ -1102,7 +1172,8 @@ export function EventTimeRangePopup({
                 </motion.button>
               </div>
 
-              {!isSingleMode ? (
+              {/* Duration shortcuts only shown on end-time step */}
+              {isPeriodMode && step === "end" ? (
                 <div className="flex flex-col items-center gap-2 pt-1">
                   {shortcuts.map((shortcut) => (
                     <motion.button
@@ -1120,14 +1191,29 @@ export function EventTimeRangePopup({
               ) : null}
             </div>
 
-            {rollsEndToNextDay ? (
+            {endTimeInvalid ? (
+              <p className="text-[11px] text-[var(--ui-calendar-accent)]">
+                End time must be after start time.
+              </p>
+            ) : rollsEndToNextDay ? (
               <p className="text-[11px] text-[var(--ui-calendar-accent)]">
                 End date will move to the next day.
               </p>
             ) : null}
 
-            <div className="flex min-h-6 justify-end">
-              {canApply ? (
+            <div className="flex min-h-6 items-center justify-end">
+              {isPeriodMode && step === "start" ? (
+                <motion.button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!canNext}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12px] text-[var(--ui-calendar-popup-subtle)] transition hover:text-[var(--ui-calendar-popup-strong)] disabled:opacity-40"
+                  whileTap={{ scale: 0.97 }}
+                >
+                  Next
+                  <ChevronRight className="size-3" />
+                </motion.button>
+              ) : canApply ? (
                 <motion.button
                   type="button"
                   onClick={applySelection}

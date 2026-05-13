@@ -19,6 +19,8 @@ import { motion } from "motion/react";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
+import { useSession } from "next-auth/react";
+
 import { useAppState } from "@/components/providers/app-state-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,10 +43,7 @@ import {
   EventDateRangePopup,
   EventTimeRangePopup,
 } from "@/components/shared/event-date-time-popups";
-import {
-  EventRangeField,
-  EventSingleField,
-} from "@/components/shared/event-range-field";
+import { EventDateTimeRangeField } from "@/components/shared/event-range-field";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { SectionLoading } from "@/components/shared/section-loading";
 import {
@@ -124,8 +123,22 @@ function EventStatusIcon({
   );
 }
 
+function shouldShowMessageIcon(
+  event: { participantStatuses?: Array<{ user: string; isParticipated: boolean }> },
+  currentUserId: string,
+): boolean {
+  const statuses = event.participantStatuses;
+  if (!statuses || !currentUserId) return false;
+  const participatedIds = statuses
+    .filter((s) => s.isParticipated)
+    .map((s) => s.user);
+  return participatedIds.length >= 2 && participatedIds.includes(currentUserId);
+}
+
 export default function EventsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?._id || session?._id || "";
   const { preferences } = useAppState();
   const queryClient = useQueryClient();
   const [filter, setFilter] =
@@ -596,18 +609,20 @@ export default function EventsPage() {
                               {event.title}
                             </p>
                             <div className="flex shrink-0 items-center gap-0.5">
-                              <EventStatusIcon
-                                icon={MessageCircle}
-                                label={`Open messages for ${event.title}`}
-                                badgeCount={messageCount}
-                                active={messageCount > 0}
-                                asButton
-                                onClick={(clickEvent) => {
-                                  clickEvent.preventDefault();
-                                  clickEvent.stopPropagation();
-                                  openEventMessages(event._id);
-                                }}
-                              />
+                              {shouldShowMessageIcon(event, currentUserId) ? (
+                                <EventStatusIcon
+                                  icon={MessageCircle}
+                                  label={`Open messages for ${event.title}`}
+                                  badgeCount={messageCount}
+                                  active={messageCount > 0}
+                                  asButton
+                                  onClick={(clickEvent) => {
+                                    clickEvent.preventDefault();
+                                    clickEvent.stopPropagation();
+                                    openEventMessages(event._id);
+                                  }}
+                                />
+                              ) : null}
                               <EventStatusIcon
                                 icon={Repeat2}
                                 label={`${event.title} recurrence`}
@@ -637,24 +652,25 @@ export default function EventsPage() {
                               <>
                                 <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1.5">
                                   <div
-                                    className="inline-grid items-center gap-x-2.5 gap-y-0.5"
-                                    style={{ gridTemplateColumns: "16px auto auto auto" }}
+                                    className="inline-grid items-center gap-x-2.5"
+                                    style={{ gridTemplateColumns: "16px auto auto auto", rowGap: 0 }}
                                   >
                                     {/* Date row */}
                                     <CalendarDays className="size-4 text-[#9CA5B5]" />
                                     <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startDateLabel}</span>
                                     <span className="justify-self-center text-[14px] leading-none text-[#A4ACBB]">-</span>
                                     <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endDateLabel}</span>
-                                    {/* Arrow row */}
+                                    {/* Time row — arrow sits inline above each time value */}
+                                    <Clock3 className="size-4 text-[#9CA5B5] mt-1.5" />
+                                    <span className="mt-1.5 flex flex-col">
+                                      <ArrowUpDown className="size-3 text-[#B0B7C5] mb-0.5" />
+                                      <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startTimeLabel}</span>
+                                    </span>
                                     <span />
-                                    <ArrowUpDown className="mx-auto size-3 text-[#B0B7C5]" />
-                                    <span />
-                                    <ArrowUpDown className="mx-auto size-3 text-[#B0B7C5]" />
-                                    {/* Time row */}
-                                    <Clock3 className="size-4 text-[#9CA5B5]" />
-                                    <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startTimeLabel}</span>
-                                    <span />
-                                    <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endTimeLabel || ""}</span>
+                                    <span className="mt-1.5 flex flex-col">
+                                      <ArrowUpDown className="size-3 text-[#B0B7C5] mb-0.5" />
+                                      <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endTimeLabel || ""}</span>
+                                    </span>
                                   </div>
                                   <div className="flex min-w-0 items-center gap-2 text-[#666E7D]">
                                     <MapPin className="size-4 shrink-0 text-[#A0A8B8]" />
@@ -814,28 +830,18 @@ export default function EventsPage() {
               value={location}
               onChange={(event) => setLocation(event.target.value)}
             />
-            <div className="space-y-3">
-              <EventRangeField
-                kind="date"
-                startValue={startDate}
-                endValue={endDate}
-                onClick={() => setDatePopupOpen(true)}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                {isAllDay ? (
-                  <EventSingleField kind="time" label="All day" />
-                ) : (
-                  <EventRangeField
-                    kind="time"
-                    startValue={startTime}
-                    endValue={endTime}
-                    use24Hour={preferences.use24Hour}
-                    collapseSingleValue={isSingleDayEvent}
-                    onClick={() => setTimePopupOpen(true)}
-                    disabled={!hasDateRange}
-                    className="max-w-full"
-                  />
-                )}
+            <EventDateTimeRangeField
+              startDate={startDate}
+              endDate={endDate}
+              startTime={startTime}
+              endTime={endTime}
+              use24Hour={preferences.use24Hour}
+              isAllDay={isAllDay}
+              collapseSingleTimeValue={isSingleDayEvent}
+              onDateClick={() => setDatePopupOpen(true)}
+              onTimeClick={() => setTimePopupOpen(true)}
+              timeDisabled={!hasDateRange}
+              allDayToggle={
                 <AllDayTabToggle
                   active={isAllDay}
                   onToggle={() => {
@@ -845,10 +851,9 @@ export default function EventsPage() {
                       setTimePopupOpen(false);
                     }
                   }}
-                  className="self-end sm:self-auto"
                 />
-              </div>
-            </div>
+              }
+            />
             <div className="space-y-2 rounded-[22px] border border-[var(--border)] bg-[var(--surface-1)]/60 p-3">
               <EventBrickSelector
                 bricks={bricks}

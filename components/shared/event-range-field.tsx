@@ -24,6 +24,22 @@ type EventSingleFieldProps = {
   className?: string;
 };
 
+export type EventDateTimeRangeFieldProps = {
+  startDate?: string | null;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  use24Hour?: boolean;
+  isAllDay?: boolean;
+  collapseSingleTimeValue?: boolean;
+  onDateClick?: () => void;
+  onTimeClick?: () => void;
+  dateDisabled?: boolean;
+  timeDisabled?: boolean;
+  allDayToggle?: React.ReactNode;
+  className?: string;
+};
+
 type RangeDisplayValue = {
   label: string;
   placeholder: boolean;
@@ -77,23 +93,30 @@ function RangeColumn({
   placeholder?: boolean;
   showMetaIcon?: boolean;
 }) {
+  if (showMetaIcon) {
+    return (
+      <span className="flex min-w-0 max-w-[132px] flex-col items-center justify-center gap-0.5 sm:max-w-[146px]">
+        <ArrowUpDown className="size-3 shrink-0 text-[var(--text-muted)]" />
+        <span
+          className={cn(
+            "block truncate font-poppins font-semibold tabular-nums tracking-[0.1em] text-[var(--text-strong)] text-[16px] sm:text-[17px]",
+            placeholder ? "text-[var(--text-muted)]" : "",
+          )}
+        >
+          {label}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <span className="min-w-0 max-w-[132px] sm:max-w-[146px]">
-      <span
-        className={cn(
-          "mb-0.5 flex h-[14px] text-[11px] font-medium text-[var(--text-muted)]",
-          showMetaIcon ? "items-center justify-center" : "items-center gap-1",
-        )}
-      >
-        {showMetaIcon ? <ArrowUpDown className="size-3" /> : null}
-        {!showMetaIcon && meta ? <span className="truncate">{meta}</span> : null}
+      <span className="mb-0.5 flex h-[14px] items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+        {meta ? <span className="truncate">{meta}</span> : null}
       </span>
       <span
         className={cn(
-          "block truncate font-poppins font-semibold text-[var(--text-strong)]",
-          showMetaIcon
-            ? "text-[16px] tabular-nums tracking-[0.1em] sm:text-[17px]"
-            : "text-[15px] tracking-[0.02em] sm:text-[16px]",
+          "block truncate font-poppins text-[15px] font-semibold tracking-[0.02em] text-[var(--text-strong)] sm:text-[16px]",
           placeholder ? "text-[var(--text-muted)]" : "",
         )}
       >
@@ -211,6 +234,212 @@ export function EventSingleField({
       <span className="font-poppins text-[16px] font-semibold text-[var(--text-strong)]">
         {label}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Unified date + time range display.
+ *
+ * Renders both the date row and the time row inside a single 3-column grid so
+ * the centre separator (–) spans the full height and stays perfectly centred
+ * regardless of AM/PM visibility or text height changes.
+ *
+ * Layout:
+ *   [CalendarDays icon] [start-date / start-time]  |  [–]  |  [end-date / end-time]
+ *                                                              [Clock3 icon on left]
+ */
+export function EventDateTimeRangeField({
+  startDate,
+  endDate,
+  startTime,
+  endTime,
+  use24Hour = false,
+  isAllDay = false,
+  collapseSingleTimeValue = false,
+  onDateClick,
+  onTimeClick,
+  dateDisabled,
+  timeDisabled,
+  allDayToggle,
+  className,
+}: EventDateTimeRangeFieldProps) {
+  const isSingleDate =
+    Boolean(startDate) && startDate === endDate;
+  const showSingleDateColumn = isSingleDate;
+  const showSingleTimeColumn = isAllDay || collapseSingleTimeValue;
+
+  const startDateCol = parseDateLabel(startDate, "Start date");
+  const endDateCol = parseDateLabel(endDate, "End date");
+  const startTimeCol = parseTimeLabel(startTime, use24Hour, "Start time");
+  const endTimeCol = parseTimeLabel(endTime, use24Hour, "End time");
+
+  const hasTimeValues = !startTimeCol.placeholder && !endTimeCol.placeholder;
+
+  // Each side (start/end) stacks: weekday meta, date, then time
+  function StartBlock() {
+    return (
+      <span className="flex min-w-0 flex-col">
+        {/* date part — clickable */}
+        <button
+          type="button"
+          onClick={onDateClick}
+          disabled={dateDisabled}
+          className="group rounded-xl px-1 py-0.5 text-left transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent"
+          aria-label="Choose event dates"
+        >
+          <span className="mb-0.5 flex h-[14px] items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+            {startDateCol.meta ? (
+              <span className="truncate">{startDateCol.meta}</span>
+            ) : null}
+          </span>
+          <span
+            className={cn(
+              "block truncate font-poppins text-[15px] font-semibold tracking-[0.02em] text-[var(--text-strong)] sm:text-[16px]",
+              startDateCol.placeholder ? "text-[var(--text-muted)]" : "",
+            )}
+          >
+            {startDateCol.label}
+          </span>
+        </button>
+
+        {/* time part — clickable */}
+        {isAllDay ? (
+          <span className="px-1 py-0.5">
+            <span className="block font-poppins text-[15px] font-semibold text-[var(--text-muted)] sm:text-[16px]">
+              All day
+            </span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onTimeClick}
+            disabled={timeDisabled}
+            className="group rounded-xl px-1 py-0.5 text-left transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent"
+            aria-label="Choose event time"
+          >
+            {hasTimeValues ? (
+              <span className="mb-0.5 flex h-[14px] items-center justify-start">
+                <ArrowUpDown className="size-3 text-[var(--text-muted)]" />
+              </span>
+            ) : (
+              <span className="mb-0.5 flex h-[14px] items-center" />
+            )}
+            <span
+              className={cn(
+                "block truncate font-poppins font-semibold tabular-nums tracking-[0.1em] text-[var(--text-strong)] text-[16px] sm:text-[17px]",
+                startTimeCol.placeholder ? "text-[var(--text-muted)]" : "",
+              )}
+            >
+              {startTimeCol.label}
+            </span>
+          </button>
+        )}
+      </span>
+    );
+  }
+
+  function EndBlock() {
+    if (showSingleDateColumn) {
+      return null;
+    }
+
+    return (
+      <span className="flex min-w-0 flex-col">
+        {/* date part */}
+        <button
+          type="button"
+          onClick={onDateClick}
+          disabled={dateDisabled}
+          className="group rounded-xl px-1 py-0.5 text-left transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent"
+          aria-label="Choose event dates"
+        >
+          <span className="mb-0.5 flex h-[14px] items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+            {endDateCol.meta ? (
+              <span className="truncate">{endDateCol.meta}</span>
+            ) : null}
+          </span>
+          <span
+            className={cn(
+              "block truncate font-poppins text-[15px] font-semibold tracking-[0.02em] text-[var(--text-strong)] sm:text-[16px]",
+              endDateCol.placeholder ? "text-[var(--text-muted)]" : "",
+            )}
+          >
+            {endDateCol.label}
+          </span>
+        </button>
+
+        {/* time part */}
+        {isAllDay ? (
+          <span className="px-1 py-0.5">
+            <span className="block font-poppins text-[15px] font-semibold text-[var(--text-muted)] sm:text-[16px]">
+              All day
+            </span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onTimeClick}
+            disabled={timeDisabled}
+            className="group rounded-xl px-1 py-0.5 text-left transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent"
+            aria-label="Choose event time"
+          >
+            {hasTimeValues ? (
+              <span className="mb-0.5 flex h-[14px] items-center justify-start">
+                <ArrowUpDown className="size-3 text-[var(--text-muted)]" />
+              </span>
+            ) : (
+              <span className="mb-0.5 flex h-[14px] items-center" />
+            )}
+            <span
+              className={cn(
+                "block truncate font-poppins font-semibold tabular-nums tracking-[0.1em] text-[var(--text-strong)] text-[16px] sm:text-[17px]",
+                endTimeCol.placeholder ? "text-[var(--text-muted)]" : "",
+              )}
+            >
+              {endTimeCol.label}
+            </span>
+          </button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <div className={cn("flex max-w-full items-start gap-2.5 px-1 py-1", className)}>
+      {/* Left icons column */}
+      <span className="flex shrink-0 flex-col items-center gap-0">
+        <span className="flex size-8 items-center justify-center rounded-full text-[var(--text-muted)]">
+          <CalendarDays className="size-[18px]" />
+        </span>
+        <span className="flex size-8 items-center justify-center rounded-full text-[var(--text-muted)]">
+          <Clock3 className="size-[18px]" />
+        </span>
+      </span>
+
+      {/* Main content: start | separator | end */}
+      {showSingleDateColumn ? (
+        /* Single-date mode: no separator, just a single stacked column */
+        <StartBlock />
+      ) : (
+        <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_16px_minmax(0,1fr)] items-stretch gap-x-1.5 sm:gap-x-3">
+          {/* Start column */}
+          <StartBlock />
+
+          {/* Centre separator — full height, always centred */}
+          <span className="flex items-center justify-center self-stretch">
+            <span className="text-[20px] leading-none text-[var(--text-muted)]">-</span>
+          </span>
+
+          {/* End column */}
+          <EndBlock />
+        </span>
+      )}
+
+      {/* All-day toggle slot (optional) */}
+      {allDayToggle ? (
+        <span className="ml-auto shrink-0 self-center">{allDayToggle}</span>
+      ) : null}
     </div>
   );
 }

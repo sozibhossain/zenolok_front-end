@@ -49,10 +49,7 @@ import {
   EventDateRangePopup,
   EventTimeRangePopup,
 } from "@/components/shared/event-date-time-popups";
-import {
-  EventRangeField,
-  EventSingleField,
-} from "@/components/shared/event-range-field";
+import { EventDateTimeRangeField } from "@/components/shared/event-range-field";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { EventSummaryCard } from "./_components/event-summary-card";
 import { EventLibraryPanel } from "./_components/event-library-panel";
@@ -827,28 +824,18 @@ export default function EventDetailsPage() {
                 setEditLocation(eventValue.target.value)
               }
             />
-            <div className="space-y-3">
-              <EventRangeField
-                kind="date"
-                startValue={editStartDate}
-                endValue={editEndDate}
-                onClick={() => setEditDatePopupOpen(true)}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                {editIsAllDay ? (
-                  <EventSingleField kind="time" label="All day" />
-                ) : (
-                  <EventRangeField
-                    kind="time"
-                    startValue={editStartTime}
-                    endValue={editEndTime}
-                    use24Hour={preferences.use24Hour}
-                    collapseSingleValue={editIsSingleDayEvent}
-                    onClick={() => setEditTimePopupOpen(true)}
-                    disabled={!editHasDateRange}
-                    className="max-w-full"
-                  />
-                )}
+            <EventDateTimeRangeField
+              startDate={editStartDate}
+              endDate={editEndDate}
+              startTime={editStartTime}
+              endTime={editEndTime}
+              use24Hour={preferences.use24Hour}
+              isAllDay={editIsAllDay}
+              collapseSingleTimeValue={editIsSingleDayEvent}
+              onDateClick={() => setEditDatePopupOpen(true)}
+              onTimeClick={() => setEditTimePopupOpen(true)}
+              timeDisabled={!editHasDateRange}
+              allDayToggle={
                 <AllDayTabToggle
                   active={editIsAllDay}
                   onToggle={() => {
@@ -858,10 +845,9 @@ export default function EventDetailsPage() {
                       setEditTimePopupOpen(false);
                     }
                   }}
-                  className="self-end sm:self-auto"
                 />
-              </div>
-            </div>
+              }
+            />
             <EventBrickSelector
               bricks={bricks}
               selectedBrickId={editBrickId}
@@ -896,6 +882,8 @@ export default function EventDetailsPage() {
         startTime={editStartTime}
         endTime={editEndTime}
         selectionMode={editIsSingleDayEvent ? "single" : "range"}
+        displayDate={editStartDate || undefined}
+        displayEndDate={editEndDate || undefined}
         onApply={({
           startTime: nextStartTime,
           endTime: nextEndTime,

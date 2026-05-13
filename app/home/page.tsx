@@ -47,10 +47,7 @@ import {
   EventDateRangePopup,
   EventTimeRangePopup,
 } from "@/components/shared/event-date-time-popups";
-import {
-  EventRangeField,
-  EventSingleField,
-} from "@/components/shared/event-range-field";
+import { EventDateTimeRangeField } from "@/components/shared/event-range-field";
 import { SectionLoading } from "@/components/shared/section-loading";
 import { TodoStatusCircle } from "@/components/shared/todo-status-circle";
 import { Button } from "@/components/ui/button";
@@ -1844,15 +1841,17 @@ export default function HomePage() {
                                           gridColumn: `${segment.startCol} / ${segment.endCol + 1}`,
                                           gridRow: segment.lane + 1,
                                           backgroundColor: `color-mix(in srgb, ${segment.color} 35%, transparent)`,
-                                          borderLeft: `3px solid ${segment.color}`,
+                                          ...(segment.isStart
+                                            ? { borderLeft: `3px solid ${segment.color}` }
+                                            : {}),
                                         }}
                                         className="flex h-4 min-w-0 items-center overflow-hidden pr-2 pl-1.5"
                                       >
-                                        <span
-                                          className="truncate font-poppins text-[12px] leading-none font-semibold text-(--text-default)"
-                                        >
-                                          {segment.title}
-                                        </span>
+                                        {segment.isStart ? (
+                                          <span className="truncate font-poppins text-[12px] leading-none font-semibold text-(--text-default)">
+                                            {segment.title}
+                                          </span>
+                                        ) : null}
                                       </div>
                                     );
                                   })}
@@ -2011,28 +2010,18 @@ export default function HomePage() {
               value={eventLocation}
               onChange={(event) => setEventLocation(event.target.value)}
             />
-            <div className="space-y-3">
-              <EventRangeField
-                kind="date"
-                startValue={eventStartDate}
-                endValue={eventEndDate}
-                onClick={() => setEventDatePopupOpen(true)}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                {eventIsAllDay ? (
-                  <EventSingleField kind="time" label="All day" />
-                ) : (
-                  <EventRangeField
-                    kind="time"
-                    startValue={eventStartTime}
-                    endValue={eventEndTime}
-                    use24Hour={preferences.use24Hour}
-                    collapseSingleValue={false}
-                    onClick={() => setEventTimePopupOpen(true)}
-                    disabled={!hasEventDateRange}
-                    className="max-w-full"
-                  />
-                )}
+            <EventDateTimeRangeField
+              startDate={eventStartDate}
+              endDate={eventEndDate}
+              startTime={eventStartTime}
+              endTime={eventEndTime}
+              use24Hour={preferences.use24Hour}
+              isAllDay={eventIsAllDay}
+              collapseSingleTimeValue={false}
+              onDateClick={() => setEventDatePopupOpen(true)}
+              onTimeClick={() => setEventTimePopupOpen(true)}
+              timeDisabled={!hasEventDateRange}
+              allDayToggle={
                 <AllDayTabToggle
                   active={eventIsAllDay}
                   onToggle={() => {
@@ -2042,10 +2031,9 @@ export default function HomePage() {
                       setEventTimePopupOpen(false);
                     }
                   }}
-                  className="self-end sm:self-auto"
                 />
-              </div>
-            </div>
+              }
+            />
 
             <div className="space-y-2 rounded-[22px] border border-[var(--border)] bg-[var(--surface-1)]/60 p-3">
               <EventBrickSelector
@@ -2090,6 +2078,8 @@ export default function HomePage() {
         startTime={eventStartTime}
         endTime={eventEndTime}
         selectionMode="range"
+        displayDate={eventStartDate || undefined}
+        displayEndDate={eventEndDate || undefined}
         onApply={({ startTime, endTime, rollsEndToNextDay }) => {
           setEventStartTime(startTime);
           setEventEndTime(endTime);

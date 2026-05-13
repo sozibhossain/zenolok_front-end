@@ -202,6 +202,7 @@ export interface EventData {
   isAllDay: boolean;
   location?: string;
   participants: Array<string | UserProfile>;
+  participantStatuses?: Array<{ user: string; isParticipated: boolean }>;
   reminder?: string | null;
   alarmPreset?: AlarmPresetKey | null;
   customAlarmOffsets?: number[] | null;
