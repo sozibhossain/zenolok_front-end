@@ -16,7 +16,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { addDays, endOfDay, format, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, endOfDay, format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 import { useSession } from "next-auth/react";
@@ -568,6 +568,25 @@ export default function EventsPage() {
                   Boolean(endDateLabel) &&
                   (endDateLabel !== startDateLabel ||
                     endDayLabel !== startDayLabel);
+                const dayCount = hasValidRange && showDateRange
+                  ? differenceInCalendarDays(endDate, startDate)
+                  : 0;
+
+                const today = startOfDay(new Date());
+                const leftLabel = (() => {
+                  if (!hasValidRange) return null;
+                  const todayMs = today.getTime();
+                  const startMs = startOfDay(startDate).getTime();
+                  const endMs = startOfDay(endDate).getTime();
+                  if (startMs <= todayMs && endMs >= todayMs) {
+                    // Ongoing: show total event duration
+                    if (dayCount === 0) return "Now";
+                    return `${dayCount} ${dayCount === 1 ? "day" : "days"}`;
+                  }
+                  const daysFromToday = differenceInCalendarDays(startDate, today);
+                  if (daysFromToday === 0) return "Now";
+                  return `${daysFromToday} ${Math.abs(daysFromToday) === 1 ? "day" : "days"}`;
+                })();
 
                 return (
                   <motion.div
@@ -575,7 +594,18 @@ export default function EventsPage() {
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.24 }}
+                    className="flex items-start gap-3"
                   >
+                    {/* Left label column */}
+                    <div className="w-16 shrink-0 pt-5 text-right">
+                      {leftLabel ? (
+                        <span className={`font-poppins text-[12px] font-medium whitespace-nowrap ${leftLabel.startsWith("-") ? "text-[#FF4D42]" : "text-[#9CA5B5]"}`}>
+                          {leftLabel}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
                     <Card
                       role="link"
                       tabIndex={0}
@@ -648,19 +678,25 @@ export default function EventsPage() {
                           </div>
                           <div className="mt-2.5 min-w-0">
                             {showDateRange ? (
-                              /* Multi-day: grid with arrows between date and time */
+                              /* Multi-day: grid with weekday labels, arrows, and day count */
                               <>
                                 <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1.5">
                                   <div
-                                    className="inline-grid items-center gap-x-2.5"
+                                    className="inline-grid items-start gap-x-2.5"
                                     style={{ gridTemplateColumns: "16px auto auto auto", rowGap: 0 }}
                                   >
                                     {/* Date row */}
-                                    <CalendarDays className="size-4 text-[#9CA5B5]" />
-                                    <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startDateLabel}</span>
-                                    <span className="justify-self-center text-[14px] leading-none text-[#A4ACBB]">-</span>
-                                    <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endDateLabel}</span>
-                                    {/* Time row — arrow sits inline above each time value */}
+                                    <CalendarDays className="size-4 text-[#9CA5B5] mt-0.5" />
+                                    <span className="flex flex-col">
+                                      <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startDateLabel}</span>
+                                      <span className="font-poppins text-[11px] font-medium leading-none text-[#9CA5B5] mt-0.5">{startDayLabel}</span>
+                                    </span>
+                                    <span className="justify-self-center self-center text-[14px] leading-none text-[#A4ACBB]">–</span>
+                                    <span className="flex flex-col">
+                                      <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endDateLabel}</span>
+                                      <span className="font-poppins text-[11px] font-medium leading-none text-[#9CA5B5] mt-0.5">{endDayLabel}</span>
+                                    </span>
+                                    {/* Time row */}
                                     <Clock3 className="size-4 text-[#9CA5B5] mt-1.5" />
                                     <span className="mt-1.5 flex flex-col">
                                       <ArrowUpDown className="size-3 text-[#B0B7C5] mb-0.5" />
@@ -672,7 +708,7 @@ export default function EventsPage() {
                                       <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endTimeLabel || ""}</span>
                                     </span>
                                   </div>
-                                  <div className="flex min-w-0 items-center gap-2 text-[#666E7D]">
+                                  <div className="flex min-w-0 items-center gap-2">
                                     <MapPin className="size-4 shrink-0 text-[#A0A8B8]" />
                                     <p className="font-poppins min-w-0 truncate text-[14px] leading-none font-medium text-[#666E7D] sm:text-[15px]">
                                       {event.location || "No location"}
@@ -681,19 +717,22 @@ export default function EventsPage() {
                                 </div>
                               </>
                             ) : (
-                              /* Single-day / All-day: simple rows, no arrows */
+                              /* Single-day / All-day: simple rows with weekday label */
                               <div className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex items-center gap-2.5">
                                     <CalendarDays className="size-4 shrink-0 text-[#9CA5B5]" />
-                                    <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startDateLabel}</span>
+                                    <span className="flex flex-col">
+                                      <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startDateLabel}</span>
+                                      <span className="font-poppins text-[11px] font-medium leading-none text-[#9CA5B5] mt-0.5">{startDayLabel}</span>
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2.5">
                                     <Clock3 className="size-4 shrink-0 text-[#9CA5B5]" />
                                     <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{startTimeLabel}</span>
                                     {endTimeLabel ? (
                                       <>
-                                        <span className="text-[14px] leading-none text-[#A4ACBB]">-</span>
+                                        <span className="text-[14px] leading-none text-[#A4ACBB]">–</span>
                                         <span className="font-poppins text-[14px] font-semibold leading-none text-[#4D5463] sm:text-[15px]">{endTimeLabel}</span>
                                       </>
                                     ) : null}
@@ -711,6 +750,7 @@ export default function EventsPage() {
                         </div>
                       </div>
                     </Card>
+                    </div>
                   </motion.div>
                 );
               })}

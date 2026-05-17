@@ -74,7 +74,7 @@ export function MessageComposer({
           value={messageText}
           onChange={(event) => onMessageChange(event.target.value)}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               if (messageText.trim() && !isSending) {
                 onSend();

@@ -625,6 +625,7 @@ export default function HomePage() {
   const [expandedEventId, setExpandedEventId] = React.useState<string | null>(
     null,
   );
+  const [showAllTodosEventId, setShowAllTodosEventId] = React.useState<string | null>(null);
   const [eventsDrawerOpen, setEventsDrawerOpen] = React.useState(false);
   const [expandedDayKey, setExpandedDayKey] = React.useState<string | null>(null);
 
@@ -1248,12 +1249,10 @@ export default function HomePage() {
               return (
                 <div
                   key={event.id}
-                  className={`group/home-event relative overflow-visible rounded-2xl bg-transparent hover:z-30 focus-within:z-30 ${
-                    expanded ? "h-[244px]" : "h-[102px]"
-                  }`}
+                  className="group/home-event relative overflow-visible rounded-2xl bg-transparent hover:z-30 focus-within:z-30"
                 >
                   <div
-                    className="home-event-card h-[102px] rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+                    className="home-event-card rounded-2xl border border-[var(--border)] bg-[var(--surface-3)] px-3 pt-3 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
                     role="button"
                     tabIndex={0}
                     onClick={() =>
@@ -1374,9 +1373,11 @@ export default function HomePage() {
                             }
                             onClick={(clickEvent) => {
                               clickEvent.stopPropagation();
-                              setExpandedEventId((prev) =>
-                                prev === event.id ? null : event.id,
-                              );
+                              setExpandedEventId((prev) => {
+                                const next = prev === event.id ? null : event.id;
+                                if (next === null) setShowAllTodosEventId(null);
+                                return next;
+                              });
                             }}
                           >
                             {expanded ? (
@@ -1398,41 +1399,65 @@ export default function HomePage() {
                       location={event.location}
                       className="ml-[22px] mt-1.5 w-[calc(100%-22px)]"
                     />
-                  </div>
 
-                  {expanded ? (
-                    <div className="drag-scrollbar-hidden mt-3 max-h-[132px] space-y-3 overflow-y-auto bg-transparent pl-8">
-                      {[...event.todos]
-                        .sort((a, b) => Number(a.isCompleted) - Number(b.isCompleted))
-                        .map((todo) => (
-                          <HomeEventTodoRow
-                            key={todo.id}
-                            text={todo.text}
-                            completed={todo.isCompleted}
-                            color={event.color}
-                            onToggle={() =>
-                              toggleEventTodoMutation.mutate({
+                    {expanded ? (() => {
+                      const VISIBLE_LIMIT = 3;
+                      const showAll = showAllTodosEventId === event.id;
+                      const sortedExpandedTodos = [...event.todos].sort(
+                        (a, b) => Number(a.isCompleted) - Number(b.isCompleted),
+                      );
+                      const visibleTodos = showAll
+                        ? sortedExpandedTodos
+                        : sortedExpandedTodos.slice(0, VISIBLE_LIMIT);
+                      const hiddenCount = Math.max(0, sortedExpandedTodos.length - VISIBLE_LIMIT);
+
+                      return (
+                        <div className="mt-3 flex flex-col gap-2 pl-8 pb-1">
+                          <div className="space-y-2">
+                            {visibleTodos.map((todo) => (
+                              <HomeEventTodoRow
+                                key={todo.id}
+                                text={todo.text}
+                                completed={todo.isCompleted}
+                                color={event.color}
+                                onToggle={() =>
+                                  toggleEventTodoMutation.mutate({
+                                    eventId: event.originalId,
+                                    todoId: todo.id,
+                                    isCompleted: !todo.isCompleted,
+                                  })
+                                }
+                                disabled={
+                                  toggleEventTodoMutation.isPending &&
+                                  toggleEventTodoMutation.variables?.todoId === todo.id
+                                }
+                              />
+                            ))}
+                            {!showAll && hiddenCount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowAllTodosEventId(event.id);
+                                }}
+                                className="font-poppins text-[12px] font-semibold text-[var(--text-muted)] transition hover:text-[var(--text-default)]"
+                              >
+                                +{hiddenCount}
+                              </button>
+                            ) : null}
+                          </div>
+                          <HomeEventTodoCreateInput
+                            onAdd={(text) =>
+                              createEventTodoMutation.mutateAsync({
                                 eventId: event.originalId,
-                                todoId: todo.id,
-                                isCompleted: !todo.isCompleted,
+                                text,
                               })
                             }
-                            disabled={
-                              toggleEventTodoMutation.isPending &&
-                              toggleEventTodoMutation.variables?.todoId === todo.id
-                            }
                           />
-                        ))}
-                      <HomeEventTodoCreateInput
-                        onAdd={(text) =>
-                          createEventTodoMutation.mutateAsync({
-                            eventId: event.originalId,
-                            text,
-                          })
-                        }
-                      />
-                    </div>
-                  ) : null}
+                        </div>
+                      );
+                    })() : null}
+                  </div>
                 </div>
               );
             })}

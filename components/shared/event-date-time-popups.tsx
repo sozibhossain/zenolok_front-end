@@ -191,24 +191,6 @@ function timeDigitsToMinutes(
   return hourValue * 60 + minuteValue;
 }
 
-function minutesToTimeDraft(totalMinutes: number, use24Hour: boolean) {
-  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
-  const hour24 = Math.floor(normalizedMinutes / 60);
-  const minute = normalizedMinutes % 60;
-  const meridiem: Meridiem = hour24 >= 12 ? "PM" : "AM";
-  const hourValue = use24Hour ? hour24 : hour24 % 12 || 12;
-  const digitsString = `${String(hourValue).padStart(2, "0")}${String(minute).padStart(2, "0")}`;
-
-  return {
-    digits: [
-      digitsString[0] || "",
-      digitsString[1] || "",
-      digitsString[2] || "",
-      digitsString[3] || "",
-    ] as TimeDigits,
-    meridiem,
-  };
-}
 
 function DayPill({
   day,
@@ -831,31 +813,6 @@ export function EventTimeRangePopup({
     setActiveDigitIndex(0);
   }, [activeField]);
 
-  const handleDurationPreset = (durationMinutes: number) => {
-    if (isSingleMode) {
-      return;
-    }
-
-    const startMinutes = timeDigitsToMinutes(
-      draftStartDigits,
-      draftStartMeridiem,
-      preferences.use24Hour,
-    );
-
-    if (startMinutes === null) {
-      return;
-    }
-
-    const nextEndDraft = minutesToTimeDraft(
-      startMinutes + durationMinutes,
-      preferences.use24Hour,
-    );
-
-    setDraftEndDigits(nextEndDraft.digits);
-    setDraftEndMeridiem(nextEndDraft.meridiem);
-    setActiveField("end");
-    setActiveDigitIndex(3);
-  };
 
   const isStartValid = isValidTimeDigits(draftStartDigits, preferences.use24Hour);
   const isEndValid = isSingleMode || isValidTimeDigits(draftEndDigits, preferences.use24Hour);
@@ -881,11 +838,6 @@ export function EventTimeRangePopup({
   const canApply = isStartValid && isEndValid && !endTimeInvalid;
   const formatLabel = preferences.use24Hour ? "24-hour format" : "12-hour format";
   const keypadDigits = [7, 8, 9, 4, 5, 6, 1, 2, 3];
-  const shortcuts = [
-    { label: "1h", value: 60 },
-    { label: "1.5h", value: 90 },
-    { label: "2h", value: 120 },
-  ];
 
   const applySelection = React.useCallback(() => {
     if (!canApply) {
@@ -1114,15 +1066,6 @@ export function EventTimeRangePopup({
               </motion.div>
             </AnimatePresence>
 
-            {/* Summary row showing confirmed start time when on end step */}
-            {isPeriodMode && step === "end" && isStartValid ? (
-              <div className="flex items-center justify-center gap-1 text-[11px] text-[var(--ui-calendar-popup-subtle)]">
-                <span>Start:</span>
-                <span className="font-medium text-[var(--ui-calendar-popup-strong)]">
-                  {timeDigitsToValue(draftStartDigits, draftStartMeridiem, preferences.use24Hour)}
-                </span>
-              </div>
-            ) : null}
 
             <div className="flex items-center gap-3 px-1">
               <span className="h-px flex-1 bg-[var(--ui-calendar-popup-input-border)]" />
@@ -1156,7 +1099,7 @@ export function EventTimeRangePopup({
                 <motion.button
                   type="button"
                   onClick={() => handleDigit("0")}
-                  className="flex h-11 items-center justify-center rounded-full bg-[var(--ui-calendar-popup-slot-active-bg)] text-[22px] font-medium leading-none text-[var(--ui-calendar-accent)] transition hover:bg-[var(--ui-calendar-popup-slot-active-bg)]"
+                  className="flex h-11 items-center justify-center rounded-full text-[22px] font-medium leading-none text-[var(--ui-calendar-popup-strong)] transition hover:bg-[var(--ui-calendar-popup-slot-bg)]"
                   whileTap={{ scale: 0.94 }}
                 >
                   0
@@ -1172,23 +1115,6 @@ export function EventTimeRangePopup({
                 </motion.button>
               </div>
 
-              {/* Duration shortcuts only shown on end-time step */}
-              {isPeriodMode && step === "end" ? (
-                <div className="flex flex-col items-center gap-2 pt-1">
-                  {shortcuts.map((shortcut) => (
-                    <motion.button
-                      key={shortcut.label}
-                      type="button"
-                      onClick={() => handleDurationPreset(shortcut.value)}
-                      disabled={!isStartValid}
-                      className="flex h-10 w-full items-center justify-center rounded-full bg-[var(--ui-calendar-popup-slot-bg)] px-2 text-[11px] font-medium text-[var(--ui-calendar-popup-subtle)] transition hover:bg-[var(--ui-calendar-popup-input-bg)] hover:text-[var(--ui-calendar-popup-strong)] disabled:opacity-40"
-                      whileTap={{ scale: 0.96 }}
-                    >
-                      {shortcut.label}
-                    </motion.button>
-                  ))}
-                </div>
-              ) : null}
             </div>
 
             {endTimeInvalid ? (
